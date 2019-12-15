@@ -1814,6 +1814,7 @@ VOID PhProcessProviderUpdate(
     SYSTEMTIME nowTime;
     ZeroMemory(&nowTime, sizeof(nowTime));
     GetSystemTime(&nowTime);
+    fprintf(logFile, "\n######################## CYCLE %d ########################\n", runCount);
     fprintf(logFile, "TIME:\t%d:%d:%d\n", nowTime.wMinute, nowTime.wSecond, nowTime.wMilliseconds);
 
     // TODO: [#1][low-priority] see what happened on that house keeping
@@ -1908,7 +1909,7 @@ VOID PhProcessProviderUpdate(
             process->KernelTime = PhCpuTotals.IdleTime;
             if (DEBUG_PROCESS_COUNT)
             {
-                fprintf(logFile, "Step1.1:\tSYSTEM_IDLE_PROCESS: CycleTime=%I64u; KernelTime=%I64u\n",
+                fprintf(logFile, "SYSTEM_IDLE_PROCESS: CycleTime=%I64u; KernelTime=%I64u\n",
                     process->KernelTime.QuadPart,
                     process->KernelTime.QuadPart);
             }
@@ -1991,7 +1992,11 @@ VOID PhProcessProviderUpdate(
                 sysTotalCycleTime);
         }
     }
-    fprintf(logFile, "HashSetSize = %d\n\n", PH_HASH_SET_SIZE(PhProcessHashSet));
+
+    if (DEBUG_PROCESS_COUNT)
+    {
+        fprintf(logFile, "Step7:\tHashSetSize = %d\n\n", PH_HASH_SET_SIZE(PhProcessHashSet));
+    }
 
     // Look for dead processes.
     {
