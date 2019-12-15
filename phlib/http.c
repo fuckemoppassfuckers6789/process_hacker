@@ -25,6 +25,8 @@
 #include <winhttp.h>
 #include <apiimport.h>
 
+#define WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3 0x00001000
+
 static const PH_FLAG_MAPPING PhpHttpRequestFlagMappings[] =
 {
     { PH_HTTP_FLAG_SECURE, WINHTTP_FLAG_SECURE },
