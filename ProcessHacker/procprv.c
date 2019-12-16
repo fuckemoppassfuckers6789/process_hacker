@@ -49,6 +49,21 @@
  * On Windows 7 and above, CPU usage can be calculated from cycle time. However, cycle time cannot
  * be split into kernel/user components, and cycle time is not available for DPCs and Interrupts
  * separately (only a "system" cycle time).
+ *
+ * DPCs and Interrupt differences
+ * DPCs or Deferred Procedure Calls are a function of all operating systems that cause a PC to wait
+ * while it is servicing a request for data from a peripheral device like a hard drive,
+ * network adapter or graphics card.
+ * When data from a peripheral hardware device is requested by the operating system,
+ * an ISR or Interrupt Service Routine is issued. If the device can not immediately service the request,
+ * then a DPC is issued and everything else that is happening on the PC must wait
+ * until that request for data has been fulfilled. ISRs and DPCs that run too long - or too often -
+ * can consume significant amounts of CPU time and cause overall system performance to suffer.
+ * They can cause audio and video glitches, mouse freezes, the screen hangs,
+ * and any number of other system-wide problems.
+ * The OS has no control over their execution. ISR's are triggered by physical hardware signals
+ * from devices to the CPU. DPCs are scheduled by interrupt handlers and run at a priority only
+ * exceed by hardware interrupt service routines.
  */
 
 #include <phapp.h>
@@ -129,34 +144,17 @@ typedef struct _PH_SID_FULL_NAME_CACHE_ENTRY
     PPH_STRING FullName;
 } PH_SID_FULL_NAME_CACHE_ENTRY, *PPH_SID_FULL_NAME_CACHE_ENTRY;
 
-VOID NTAPI PhpProcessItemDeleteProcedure(
-    _In_ PVOID Object,
-    _In_ ULONG Flags
-    );
-
-VOID PhpQueueProcessQueryStage1(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    );
-
-VOID PhpQueueProcessQueryStage2(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    );
-
-PPH_PROCESS_RECORD PhpCreateProcessRecord(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    );
-
-VOID PhpAddProcessRecord(
-    _Inout_ PPH_PROCESS_RECORD ProcessRecord
-    );
-
-VOID PhpRemoveProcessRecord(
-    _Inout_ PPH_PROCESS_RECORD ProcessRecord
-    );
+VOID NTAPI PhpProcessItemDeleteProcedure(_In_ PVOID Object, _In_ ULONG Flags);
+VOID PhpQueueProcessQueryStage1(_In_ PPH_PROCESS_ITEM ProcessItem);
+VOID PhpQueueProcessQueryStage2(_In_ PPH_PROCESS_ITEM ProcessItem);
+PPH_PROCESS_RECORD PhpCreateProcessRecord(_In_ PPH_PROCESS_ITEM ProcessItem);
+VOID PhpAddProcessRecord(_Inout_ PPH_PROCESS_RECORD ProcessRecord);
+VOID PhpRemoveProcessRecord(_Inout_ PPH_PROCESS_RECORD ProcessRecord);
 
 PPH_OBJECT_TYPE PhProcessItemType = NULL;
 
 PPH_HASH_ENTRY PhProcessHashSet[256] = PH_HASH_SET_INIT;
+
 ULONG PhProcessHashSetCount = 0;
 PH_QUEUED_LOCK PhProcessHashSetLock = PH_QUEUED_LOCK_INIT;
 
@@ -185,7 +183,6 @@ PLARGE_INTEGER PhCpuIdleCycleTime = NULL; // cycle time for Idle
 PLARGE_INTEGER PhCpuSystemCycleTime = NULL; // cycle time for DPCs and Interrupts
 PH_UINT64_DELTA PhCpuIdleCycleDelta;
 PH_UINT64_DELTA PhCpuSystemCycleDelta;
-//PPH_UINT64_DELTA PhCpusIdleCycleDelta;
 
 FLOAT PhCpuKernelUsage = 0.0f;
 FLOAT PhCpuUserUsage = 0.0f;
@@ -210,11 +207,9 @@ static PH_CIRCULAR_BUFFER_ULONG PhTimeHistory;
 
 PH_CIRCULAR_BUFFER_FLOAT PhCpuKernelHistory;
 PH_CIRCULAR_BUFFER_FLOAT PhCpuUserHistory;
-//PH_CIRCULAR_BUFFER_FLOAT PhCpuOtherHistory;
 
 PPH_CIRCULAR_BUFFER_FLOAT PhCpusKernelHistory;
 PPH_CIRCULAR_BUFFER_FLOAT PhCpusUserHistory;
-//PPH_CIRCULAR_BUFFER_FLOAT PhCpusOtherHistory;
 
 PH_CIRCULAR_BUFFER_ULONG64 PhIoReadHistory;
 PH_CIRCULAR_BUFFER_ULONG64 PhIoWriteHistory;
@@ -233,9 +228,7 @@ PH_CIRCULAR_BUFFER_ULONG64 PhMaxIoWriteHistory;
 
 static PPH_HASHTABLE PhpSidFullNameCacheHashtable = NULL;
 
-BOOLEAN PhProcessProviderInitialization(
-    VOID
-    )
+BOOLEAN PhProcessProviderInitialization(VOID)
 {
     PFLOAT usageBuffer;
     PPH_UINT64_DELTA deltaBuffer;
@@ -259,33 +252,26 @@ BOOLEAN PhProcessProviderInitialization(
 
     PhCpuInformation = PhAllocate(
         sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION) *
-        (ULONG)PhSystemBasicInformation.NumberOfProcessors
-        );
+        (ULONG)PhSystemBasicInformation.NumberOfProcessors);
 
     PhCpuIdleCycleTime = PhAllocate(
         sizeof(LARGE_INTEGER) *
-        (ULONG)PhSystemBasicInformation.NumberOfProcessors
-        );
+        (ULONG)PhSystemBasicInformation.NumberOfProcessors);
+
     PhCpuSystemCycleTime = PhAllocate(
         sizeof(LARGE_INTEGER) *
-        (ULONG)PhSystemBasicInformation.NumberOfProcessors
-        );
+        (ULONG)PhSystemBasicInformation.NumberOfProcessors);
 
     usageBuffer = PhAllocate(
         sizeof(FLOAT) *
-        (ULONG)PhSystemBasicInformation.NumberOfProcessors *
-        2
-        );
+        (ULONG)PhSystemBasicInformation.NumberOfProcessors * 2);
     deltaBuffer = PhAllocate(
         sizeof(PH_UINT64_DELTA) *
-        (ULONG)PhSystemBasicInformation.NumberOfProcessors *
-        3 // 4 for PhCpusIdleCycleDelta
-        );
+        (ULONG)PhSystemBasicInformation.NumberOfProcessors * 3); // 4 for PhCpusIdleCycleDelta
+        
     historyBuffer = PhAllocate(
         sizeof(PH_CIRCULAR_BUFFER_FLOAT) *
-        (ULONG)PhSystemBasicInformation.NumberOfProcessors *
-        2
-        );
+        (ULONG)PhSystemBasicInformation.NumberOfProcessors * 2);
 
     PhCpusKernelUsage = usageBuffer;
     PhCpusUserUsage = PhCpusKernelUsage + (ULONG)PhSystemBasicInformation.NumberOfProcessors;
@@ -293,7 +279,6 @@ BOOLEAN PhProcessProviderInitialization(
     PhCpusKernelDelta = deltaBuffer;
     PhCpusUserDelta = PhCpusKernelDelta + (ULONG)PhSystemBasicInformation.NumberOfProcessors;
     PhCpusIdleDelta = PhCpusUserDelta + (ULONG)PhSystemBasicInformation.NumberOfProcessors;
-    //PhCpusIdleCycleDelta = PhCpusIdleDelta + (ULONG)PhSystemBasicInformation.NumberOfProcessors;
 
     PhCpusKernelHistory = historyBuffer;
     PhCpusUserHistory = PhCpusKernelHistory + (ULONG)PhSystemBasicInformation.NumberOfProcessors;
@@ -303,9 +288,7 @@ BOOLEAN PhProcessProviderInitialization(
     return TRUE;
 }
 
-PPH_STRING PhGetClientIdName(
-    _In_ PCLIENT_ID ClientId
-    )
+PPH_STRING PhGetClientIdName(_In_ PCLIENT_ID ClientId)
 {
     PPH_STRING name;
     PPH_PROCESS_ITEM processItem;
@@ -381,9 +364,7 @@ PPH_STRING PhGetClientIdNameEx(
     return name;
 }
 
-PWSTR PhGetProcessPriorityClassString(
-    _In_ ULONG PriorityClass
-    )
+PWSTR PhGetProcessPriorityClassString(_In_ ULONG PriorityClass)
 {
     switch (PriorityClass)
     {
@@ -407,9 +388,7 @@ PWSTR PhGetProcessPriorityClassString(
 /**
  * Creates a process item.
  */
-PPH_PROCESS_ITEM PhCreateProcessItem(
-    _In_ HANDLE ProcessId
-    )
+PPH_PROCESS_ITEM PhCreateProcessItem(_In_ HANDLE ProcessId)
 {
     PPH_PROCESS_ITEM processItem;
 
@@ -430,17 +409,13 @@ PPH_PROCESS_ITEM PhCreateProcessItem(
     PhInitializeCircularBuffer_ULONG64(&processItem->IoWriteHistory, PhStatisticsSampleCount);
     PhInitializeCircularBuffer_ULONG64(&processItem->IoOtherHistory, PhStatisticsSampleCount);
     PhInitializeCircularBuffer_SIZE_T(&processItem->PrivateBytesHistory, PhStatisticsSampleCount);
-    //PhInitializeCircularBuffer_SIZE_T(&processItem->WorkingSetHistory, PhStatisticsSampleCount);
 
     PhEmCallObjectOperation(EmProcessItemType, processItem, EmObjectCreate);
 
     return processItem;
 }
 
-VOID PhpProcessItemDeleteProcedure(
-    _In_ PVOID Object,
-    _In_ ULONG Flags
-    )
+VOID PhpProcessItemDeleteProcedure(_In_ PVOID Object,_In_ ULONG Flags)
 {
     PPH_PROCESS_ITEM processItem = (PPH_PROCESS_ITEM)Object;
     ULONG i;
@@ -453,7 +428,6 @@ VOID PhpProcessItemDeleteProcedure(
     PhDeleteCircularBuffer_ULONG64(&processItem->IoWriteHistory);
     PhDeleteCircularBuffer_ULONG64(&processItem->IoOtherHistory);
     PhDeleteCircularBuffer_SIZE_T(&processItem->PrivateBytesHistory);
-    //PhDeleteCircularBuffer_SIZE_T(&processItem->WorkingSetHistory);
 
     if (processItem->ServiceList)
     {
@@ -467,34 +441,75 @@ VOID PhpProcessItemDeleteProcedure(
         PhDereferenceObject(processItem->ServiceList);
     }
 
-    if (processItem->ProcessName) PhDereferenceObject(processItem->ProcessName);
-    if (processItem->FileNameWin32) PhDereferenceObject(processItem->FileNameWin32);
-    if (processItem->FileName) PhDereferenceObject(processItem->FileName);
-    if (processItem->CommandLine) PhDereferenceObject(processItem->CommandLine);
-    if (processItem->SmallIcon) DestroyIcon(processItem->SmallIcon);
-    if (processItem->LargeIcon) DestroyIcon(processItem->LargeIcon);
+    if (processItem->ProcessName)
+    {
+        PhDereferenceObject(processItem->ProcessName);
+    }
+
+    if (processItem->FileNameWin32)
+    {
+        PhDereferenceObject(processItem->FileNameWin32);
+    }
+
+    if (processItem->FileName)
+    {
+        PhDereferenceObject(processItem->FileName);
+    }
+
+    if (processItem->CommandLine)
+    {
+        PhDereferenceObject(processItem->CommandLine);
+    }
+
+    if (processItem->SmallIcon)
+    {
+        DestroyIcon(processItem->SmallIcon);
+    }
+
+    if (processItem->LargeIcon)
+    {
+        DestroyIcon(processItem->LargeIcon);
+    }
+
     PhDeleteImageVersionInfo(&processItem->VersionInfo);
-    if (processItem->Sid) PhFree(processItem->Sid);
-    if (processItem->VerifySignerName) PhDereferenceObject(processItem->VerifySignerName);
-    if (processItem->PackageFullName) PhDereferenceObject(processItem->PackageFullName);
-    if (processItem->UserName) PhDereferenceObject(processItem->UserName);
 
-    if (processItem->QueryHandle) NtClose(processItem->QueryHandle);
+    if (processItem->Sid)
+    {
+        PhFree(processItem->Sid);
+    }
 
-    if (processItem->Record) PhDereferenceProcessRecord(processItem->Record);
+    if (processItem->VerifySignerName)
+    {
+        PhDereferenceObject(processItem->VerifySignerName);
+    }
+
+    if (processItem->PackageFullName)
+    {
+        PhDereferenceObject(processItem->PackageFullName);
+    }
+
+    if (processItem->UserName)
+    {
+        PhDereferenceObject(processItem->UserName);
+    }
+
+    if (processItem->QueryHandle)
+    {
+        NtClose(processItem->QueryHandle);
+    }
+
+    if (processItem->Record)
+    {
+        PhDereferenceProcessRecord(processItem->Record);
+    }
 }
 
-FORCEINLINE BOOLEAN PhCompareProcessItem(
-    _In_ PPH_PROCESS_ITEM Value1,
-    _In_ PPH_PROCESS_ITEM Value2
-    )
+FORCEINLINE BOOLEAN PhCompareProcessItem(_In_ PPH_PROCESS_ITEM Value1, _In_ PPH_PROCESS_ITEM Value2)
 {
     return Value1->ProcessId == Value2->ProcessId;
 }
 
-FORCEINLINE ULONG PhHashProcessItem(
-    _In_ PPH_PROCESS_ITEM Value
-    )
+FORCEINLINE ULONG PhHashProcessItem(_In_ PPH_PROCESS_ITEM Value)
 {
     return HandleToUlong(Value->ProcessId) / 4;
 }
@@ -503,13 +518,10 @@ FORCEINLINE ULONG PhHashProcessItem(
  * Finds a process item in the hash set.
  *
  * \param ProcessId The process ID of the process item.
- *
  * \remarks The hash set must be locked before calling this function. The reference count of the
  * found process item is not incremented.
  */
-PPH_PROCESS_ITEM PhpLookupProcessItem(
-    _In_ HANDLE ProcessId
-    )
+PPH_PROCESS_ITEM PhpLookupProcessItem(_In_ HANDLE ProcessId)
 {
     PH_PROCESS_ITEM lookupProcessItem;
     PPH_HASH_ENTRY entry;
@@ -535,14 +547,10 @@ PPH_PROCESS_ITEM PhpLookupProcessItem(
 
 /**
  * Finds and references a process item.
- *
  * \param ProcessId The process ID of the process item.
- *
  * \return The found process item.
  */
-PPH_PROCESS_ITEM PhReferenceProcessItem(
-    _In_ HANDLE ProcessId
-    )
+PPH_PROCESS_ITEM PhReferenceProcessItem(_In_ HANDLE ProcessId)
 {
     PPH_PROCESS_ITEM processItem;
 
@@ -566,10 +574,7 @@ PPH_PROCESS_ITEM PhReferenceProcessItem(
  * \param NumberOfProcessItems A variable which receives the number of process items returned in
  * \a ProcessItems.
  */
-VOID PhEnumProcessItems(
-    _Out_opt_ PPH_PROCESS_ITEM **ProcessItems,
-    _Out_ PULONG NumberOfProcessItems
-    )
+VOID PhEnumProcessItems(_Out_opt_ PPH_PROCESS_ITEM **ProcessItems,_Out_ PULONG NumberOfProcessItems)
 {
     PPH_PROCESS_ITEM *processItems;
     ULONG numberOfProcessItems;
@@ -605,9 +610,7 @@ VOID PhEnumProcessItems(
     *NumberOfProcessItems = numberOfProcessItems;
 }
 
-VOID PhpAddProcessItem(
-    _In_ _Assume_refs_(1) PPH_PROCESS_ITEM ProcessItem
-    )
+VOID PhpAddProcessItem(_In_ _Assume_refs_(1) PPH_PROCESS_ITEM ProcessItem)
 {
     PhAddEntryHashSet(
         PhProcessHashSet,
@@ -618,19 +621,14 @@ VOID PhpAddProcessItem(
     PhProcessHashSetCount++;
 }
 
-VOID PhpRemoveProcessItem(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    )
+VOID PhpRemoveProcessItem(_In_ PPH_PROCESS_ITEM ProcessItem)
 {
     PhRemoveEntryHashSet(PhProcessHashSet, PH_HASH_SET_SIZE(PhProcessHashSet), &ProcessItem->HashEntry);
     PhProcessHashSetCount--;
     PhDereferenceObject(ProcessItem);
 }
 
-BOOLEAN PhpSidFullNameCacheHashtableEqualFunction(
-    _In_ PVOID Entry1,
-    _In_ PVOID Entry2
-    )
+BOOLEAN PhpSidFullNameCacheHashtableEqualFunction(_In_ PVOID Entry1, _In_ PVOID Entry2)
 {
     PPH_SID_FULL_NAME_CACHE_ENTRY entry1 = Entry1;
     PPH_SID_FULL_NAME_CACHE_ENTRY entry2 = Entry2;
@@ -638,18 +636,14 @@ BOOLEAN PhpSidFullNameCacheHashtableEqualFunction(
     return RtlEqualSid(entry1->Sid, entry2->Sid);
 }
 
-ULONG PhpSidFullNameCacheHashtableHashFunction(
-    _In_ PVOID Entry
-    )
+ULONG PhpSidFullNameCacheHashtableHashFunction(_In_ PVOID Entry)
 {
     PPH_SID_FULL_NAME_CACHE_ENTRY entry = Entry;
 
     return PhHashBytes(entry->Sid, RtlLengthSid(entry->Sid));
 }
 
-PPH_STRING PhpGetSidFullNameCachedSlow(
-    _In_ PSID Sid
-    )
+PPH_STRING PhpGetSidFullNameCachedSlow(_In_ PSID Sid)
 {
     PPH_STRING fullName;
     PH_SID_FULL_NAME_CACHE_ENTRY newEntry;
@@ -677,8 +671,7 @@ PPH_STRING PhpGetSidFullNameCachedSlow(
             sizeof(PH_SID_FULL_NAME_CACHE_ENTRY),
             PhpSidFullNameCacheHashtableEqualFunction,
             PhpSidFullNameCacheHashtableHashFunction,
-            16
-            );
+            16);
     }
 
     newEntry.Sid = PhAllocateCopy(Sid, RtlLengthSid(Sid));
@@ -688,24 +681,8 @@ PPH_STRING PhpGetSidFullNameCachedSlow(
     return fullName;
 }
 
-PPH_STRING PhpGetSidFullNameCached(
-    _In_ PSID Sid
-    )
+PPH_STRING PhpGetSidFullNameCached(_In_ PSID Sid)
 {
-    //if (!PhpSidFullNameCacheHashtable)
-    //{
-    //    PhpSidFullNameCacheHashtable = PhCreateHashtable(
-    //        sizeof(PH_SID_FULL_NAME_CACHE_ENTRY),
-    //        PhpSidFullNameCacheHashtableEqualFunction,
-    //        PhpSidFullNameCacheHashtableHashFunction,
-    //        16
-    //        );
-    //    // HACK pre-cache local SIDs (dmex)
-    //    PhpGetSidFullNameCachedSlow(&PhSeLocalSystemSid);
-    //    PhpGetSidFullNameCachedSlow(&PhSeLocalServiceSid);
-    //    PhpGetSidFullNameCachedSlow(&PhSeNetworkServiceSid);
-    //}
-
     if (PhpSidFullNameCacheHashtable)
     {
         PPH_SID_FULL_NAME_CACHE_ENTRY entry;
@@ -721,9 +698,7 @@ PPH_STRING PhpGetSidFullNameCached(
     return NULL;
 }
 
-VOID PhpFlushSidFullNameCache(
-    VOID
-    )
+VOID PhpFlushSidFullNameCache(VOID)
 {
     PH_HASHTABLE_ENUM_CONTEXT enumContext;
     PPH_SID_FULL_NAME_CACHE_ENTRY entry;
@@ -742,9 +717,7 @@ VOID PhpFlushSidFullNameCache(
     PhClearReference(&PhpSidFullNameCacheHashtable);
 }
 
-VOID PhpProcessQueryStage1(
-    _Inout_ PPH_PROCESS_QUERY_S1_DATA Data
-    )
+VOID PhpProcessQueryStage1(_Inout_ PPH_PROCESS_QUERY_S1_DATA Data)
 {
     NTSTATUS status;
     PPH_PROCESS_ITEM processItem = Data->Header.ProcessItem;
@@ -938,9 +911,7 @@ VOID PhpProcessQueryStage1(
     }
 }
 
-VOID PhpProcessQueryStage2(
-    _Inout_ PPH_PROCESS_QUERY_S2_DATA Data
-    )
+VOID PhpProcessQueryStage2(_Inout_ PPH_PROCESS_QUERY_S2_DATA Data)
 {
     PPH_PROCESS_ITEM processItem = Data->Header.ProcessItem;
 
@@ -981,9 +952,7 @@ VOID PhpProcessQueryStage2(
     }
 }
 
-NTSTATUS PhpProcessQueryStage1Worker(
-    _In_ PVOID Parameter
-    )
+NTSTATUS PhpProcessQueryStage1Worker(_In_ PVOID Parameter)
 {
     PPH_PROCESS_ITEM processItem = (PPH_PROCESS_ITEM)Parameter;
     PPH_PROCESS_QUERY_S1_DATA data;
@@ -999,9 +968,7 @@ NTSTATUS PhpProcessQueryStage1Worker(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PhpProcessQueryStage2Worker(
-    _In_ PVOID Parameter
-    )
+NTSTATUS PhpProcessQueryStage2Worker(_In_ PVOID Parameter)
 {
     PPH_PROCESS_ITEM processItem = (PPH_PROCESS_ITEM)Parameter;
     PPH_PROCESS_QUERY_S2_DATA data;
@@ -1017,9 +984,7 @@ NTSTATUS PhpProcessQueryStage2Worker(
     return STATUS_SUCCESS;
 }
 
-VOID PhpQueueProcessQueryStage1(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    )
+VOID PhpQueueProcessQueryStage1(_In_ PPH_PROCESS_ITEM ProcessItem)
 {
     PH_WORK_QUEUE_ENVIRONMENT environment;
 
@@ -1032,9 +997,7 @@ VOID PhpQueueProcessQueryStage1(
     PhQueueItemWorkQueueEx(PhGetGlobalWorkQueue(), PhpProcessQueryStage1Worker, ProcessItem, NULL, &environment);
 }
 
-VOID PhpQueueProcessQueryStage2(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    )
+VOID PhpQueueProcessQueryStage2(_In_ PPH_PROCESS_ITEM ProcessItem)
 {
     PH_WORK_QUEUE_ENVIRONMENT environment;
 
@@ -1048,9 +1011,7 @@ VOID PhpQueueProcessQueryStage2(
     PhQueueItemWorkQueueEx(PhGetGlobalWorkQueue(), PhpProcessQueryStage2Worker, ProcessItem, NULL, &environment);
 }
 
-VOID PhpFillProcessItemStage1(
-    _In_ PPH_PROCESS_QUERY_S1_DATA Data
-    )
+VOID PhpFillProcessItemStage1(_In_ PPH_PROCESS_QUERY_S1_DATA Data)
 {
     PPH_PROCESS_ITEM processItem = Data->Header.ProcessItem;
 
@@ -1079,9 +1040,7 @@ VOID PhpFillProcessItemStage1(
     PhpQueueProcessQueryStage2(processItem);
 }
 
-VOID PhpFillProcessItemStage2(
-    _In_ PPH_PROCESS_QUERY_S2_DATA Data
-    )
+VOID PhpFillProcessItemStage2(_In_ PPH_PROCESS_QUERY_S2_DATA Data)
 {
     PPH_PROCESS_ITEM processItem = Data->Header.ProcessItem;
 
@@ -1098,10 +1057,7 @@ VOID PhpFillProcessItemStage2(
     }
 }
 
-VOID PhpFillProcessItemExtension(
-    _Inout_ PPH_PROCESS_ITEM ProcessItem,
-    _In_ PSYSTEM_PROCESS_INFORMATION Process
-    )
+VOID PhpFillProcessItemExtension(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYSTEM_PROCESS_INFORMATION Process)
 {
     PSYSTEM_PROCESS_INFORMATION_EXTENSION processExtension;
 
@@ -1114,10 +1070,7 @@ VOID PhpFillProcessItemExtension(
     ProcessItem->ProcessSequenceNumber = processExtension->ProcessSequenceNumber;
 }
 
-VOID PhpFillProcessItem(
-    _Inout_ PPH_PROCESS_ITEM ProcessItem,
-    _In_ PSYSTEM_PROCESS_INFORMATION Process
-    )
+VOID PhpFillProcessItem(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYSTEM_PROCESS_INFORMATION Process)
 {
     ProcessItem->ParentProcessId = Process->InheritedFromUniqueProcessId;
     ProcessItem->SessionId = Process->SessionId;
@@ -1168,7 +1121,6 @@ VOID PhpFillProcessItem(
     {
         // If we're dealing with System (PID 4), we need to get the
         // kernel file name. Otherwise, get the image file name. (wj32)
-
         if (ProcessItem->ProcessId != SYSTEM_PROCESS_ID)
         {
             if (PH_IS_REAL_PROCESS_ID(ProcessItem->ProcessId))
@@ -1313,10 +1265,7 @@ VOID PhpFillProcessItem(
     }
 }
 
-FORCEINLINE VOID PhpUpdateDynamicInfoProcessItem(
-    _Inout_ PPH_PROCESS_ITEM ProcessItem,
-    _In_ PSYSTEM_PROCESS_INFORMATION Process
-    )
+FORCEINLINE VOID PhpUpdateDynamicInfoProcessItem(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYSTEM_PROCESS_INFORMATION Process)
 {
     ProcessItem->BasePriority = Process->BasePriority;
 
@@ -1347,9 +1296,7 @@ FORCEINLINE VOID PhpUpdateDynamicInfoProcessItem(
     ProcessItem->IoCounters = *(PIO_COUNTERS)&Process->ReadOperationCount;
 }
 
-VOID PhpUpdatePerfInformation(
-    VOID
-    )
+VOID PhpUpdatePerfInformation(VOID)
 {
     NtQuerySystemInformation(
         SystemPerformanceInformation,
@@ -1363,10 +1310,7 @@ VOID PhpUpdatePerfInformation(
     PhUpdateDelta(&PhIoOtherDelta, PhPerfInformation.IoOtherTransferCount.QuadPart);
 }
 
-VOID PhpUpdateCpuInformation(
-    _In_ BOOLEAN SetCpuUsage,
-    _Out_ PULONG64 TotalTime
-    )
+VOID PhpUpdateCpuInformation(_In_ BOOLEAN SetCpuUsage, _Out_ PULONG64 TotalTime)
 {
     ULONG i;
     ULONG64 totalTime;
@@ -1439,9 +1383,7 @@ VOID PhpUpdateCpuInformation(
     *TotalTime = totalTime;
 }
 
-VOID PhpUpdateCpuCycleInformation(
-    _Out_ PULONG64 IdleCycleTime
-    )
+VOID PhpUpdateCpuCycleInformation(_Out_ PULONG64 IdleCycleTime)
 {
     ULONG i;
     ULONG64 total;
@@ -1488,10 +1430,7 @@ VOID PhpUpdateCpuCycleInformation(
     PhUpdateDelta(&PhCpuSystemCycleDelta, total);
 }
 
-VOID PhpUpdateCpuCycleUsageInformation(
-    _In_ ULONG64 TotalCycleTime,
-    _In_ ULONG64 IdleCycleTime
-    )
+VOID PhpUpdateCpuCycleUsageInformation(_In_ ULONG64 TotalCycleTime, _In_ ULONG64 IdleCycleTime)
 {
     ULONG i;
     FLOAT baseCpuUsage;
@@ -1559,9 +1498,7 @@ VOID PhpUpdateCpuCycleUsageInformation(
     }
 }
 
-VOID PhpInitializeProcessStatistics(
-    VOID
-    )
+VOID PhpInitializeProcessStatistics(VOID)
 {
     ULONG i;
 
@@ -1588,9 +1525,7 @@ VOID PhpInitializeProcessStatistics(
     }
 }
 
-VOID PhpUpdateSystemHistory(
-    VOID
-    )
+VOID PhpUpdateSystemHistory(VOID)
 {
     ULONG i;
     LARGE_INTEGER systemTime;
@@ -1635,11 +1570,7 @@ VOID PhpUpdateSystemHistory(
  * \return TRUE if the function succeeded, otherwise FALSE if \a ProcessItem was specified and
  * \a Index is too far into the past for that process item.
  */
-BOOLEAN PhGetStatisticsTime(
-    _In_opt_ PPH_PROCESS_ITEM ProcessItem,
-    _In_ ULONG Index,
-    _Out_ PLARGE_INTEGER Time
-    )
+BOOLEAN PhGetStatisticsTime(_In_opt_ PPH_PROCESS_ITEM ProcessItem, _In_ ULONG Index, _Out_ PLARGE_INTEGER Time)
 {
     ULONG secondsSince1980;
     ULONG index;
@@ -1671,10 +1602,7 @@ BOOLEAN PhGetStatisticsTime(
     return TRUE;
 }
 
-PPH_STRING PhGetStatisticsTimeString(
-    _In_opt_ PPH_PROCESS_ITEM ProcessItem,
-    _In_ ULONG Index
-    )
+PPH_STRING PhGetStatisticsTimeString(_In_opt_ PPH_PROCESS_ITEM ProcessItem, _In_ ULONG Index)
 {
     LARGE_INTEGER time;
     SYSTEMTIME systemTime;
@@ -1691,9 +1619,7 @@ PPH_STRING PhGetStatisticsTimeString(
     }
 }
 
-VOID PhFlushProcessQueryData(
-    VOID
-    )
+VOID PhFlushProcessQueryData(VOID)
 {
     PSLIST_ENTRY entry;
     PPH_PROCESS_QUERY_DATA data;
@@ -1729,8 +1655,7 @@ VOID PhpGetProcessThreadInformation(
     _In_ PSYSTEM_PROCESS_INFORMATION Process,
     _Out_opt_ PBOOLEAN IsSuspended,
     _Out_opt_ PBOOLEAN IsPartiallySuspended,
-    _Out_opt_ PULONG ContextSwitches
-    )
+    _Out_opt_ PULONG ContextSwitches)
 {
     ULONG i;
     BOOLEAN isSuspended;
@@ -1771,10 +1696,8 @@ VOID PhpGetProcessThreadInformation(
         *ContextSwitches = contextSwitches;
 }
 
-// Run every
-VOID PhProcessProviderUpdate(
-    _In_ PVOID obj
-    )
+// Run every 1 second
+VOID PhProcessProviderUpdate(_In_ PVOID obj)
 {
     static ULONG runCount = 0;
 
@@ -1803,28 +1726,38 @@ VOID PhProcessProviderUpdate(
     ULONG64 maxIoValue = 0;
     PPH_PROCESS_ITEM maxIoProcessItem = NULL;
 
+    //////////////////////////////////////////////////////////////////////////
+    // DEBUG SECTION
+    const CHAR* logFileName = "C:\\Users\\atatat\\AppData\\Roaming\\cpu.log";
+    const WCHAR* imageName = L"C:\\Users\\atatat\\Projects\\entropy_calculator\\build-cmake\\entropy_calculator\\Release\\entropy_calculator.exe";
     BOOL DEBUG_CPU_COUNTS = FALSE;
-    BOOL DEBUG_PROCESS_COUNT = TRUE;
+    BOOL DEBUG_PROCESS_COUNT = FALSE;
+    BOOL DEBUG_DEAD_PROCESSES = TRUE;
+    // END DEBUG SECTION
+    //////////////////////////////////////////////////////////////////////////
 
-    CHAR* logFileName = "C:\\Users\\atatat\\AppData\\Roaming\\cpu.log";
-    FILE* logFile = fopen(logFileName, "a");
-
-    // Pre-update tasks
-
+    //////////////////////////////////////////////////////////////////////////
+    // Set up logging
+    FILE* LogFile = fopen(logFileName, "a");
+    
     SYSTEMTIME nowTime;
     ZeroMemory(&nowTime, sizeof(nowTime));
     GetSystemTime(&nowTime);
-    fprintf(logFile, "\n######################## CYCLE %d ########################\n", runCount);
-    fprintf(logFile, "TIME:\t%d:%d:%d\n", nowTime.wMinute, nowTime.wSecond, nowTime.wMilliseconds);
+    fprintf(LogFile, "\n######################## CYCLE %d ########################\n", runCount);
+    fprintf(LogFile, "TIME:\t%d:%d:%d\n", nowTime.wMinute, nowTime.wSecond, nowTime.wMilliseconds);
+
+    //////////////////////////////////////////////////////////////////////////
+    // Pre-update tasks
 
     // TODO: [#1][low-priority] see what happened on that house keeping
     if (runCount % 512 == 0) // yes, a very long time
     {
         if (PhEnablePurgeProcessRecords)
+        {
             PhPurgeProcessRecords();
+        }
 
         PhpFlushSidFullNameCache();
-
         PhFlushImageVersionInfoCache();
     }
 
@@ -1852,13 +1785,14 @@ VOID PhProcessProviderUpdate(
         PhTimeSequenceNumber++;
     }
 
-    // Get the process list.
+    //////////////////////////////////////////////////////////////////////////
+    // Get the process list
 
     PhTotalProcesses = 0;
     PhTotalThreads = 0;
     PhTotalHandles = 0;
 
-    // NtQuerySystemInformation()
+    // NtQuerySystemInformation() called here
     if (!NT_SUCCESS(PhEnumProcesses(&processes)))
         return;
 
@@ -1886,11 +1820,12 @@ VOID PhProcessProviderUpdate(
     // Create the PID hash set. This contains the process information structures returned by
     // PhEnumProcesses, distinct from the process item hash set. Note that we use the
     // UniqueProcessKey field as the next node pointer to avoid having to allocate extra memory.
-
+    // Zero HashSet buckets first.
     memset(pidBuckets, 0, sizeof(pidBuckets));
 
     process = PH_FIRST_PROCESS(processes);
 
+    // Iterate over processes list, fill out hash set of processes
     do
     {
         PhTotalProcesses++;
@@ -1899,7 +1834,7 @@ VOID PhProcessProviderUpdate(
 
         if(DEBUG_PROCESS_COUNT)
         {
-            fprintf(logFile, "Step1:\tPhTotalProcesses=%u; PhTotalThreads=%u\n", PhTotalProcesses, PhTotalThreads);
+            fprintf(LogFile, "Step1:\tPhTotalProcesses=%u; PhTotalThreads=%u\n", PhTotalProcesses, PhTotalThreads);
         }
         
 
@@ -1909,24 +1844,40 @@ VOID PhProcessProviderUpdate(
             process->KernelTime = PhCpuTotals.IdleTime;
             if (DEBUG_PROCESS_COUNT)
             {
-                fprintf(logFile, "SYSTEM_IDLE_PROCESS: CycleTime=%I64u; KernelTime=%I64u\n",
+                fprintf(LogFile, "SYSTEM_IDLE_PROCESS: CycleTime=%I64u; KernelTime=%I64u\n",
                     process->KernelTime.QuadPart,
                     process->KernelTime.QuadPart);
             }
         }
 
-        bucketIndex = PROCESS_ID_TO_BUCKET_INDEX(process->UniqueProcessId);
+        if (DEBUG_PROCESS_COUNT)
+        {
+            fwprintf(LogFile, L"Step2:\tProcessName = %s\n", process->ImageName.Buffer);
+        }
+
+        // pidBuckets = pointers to SYSTEM_PROCESS_INFORMATION, 64 total. First string seems to be hash function
+        bucketIndex = ((HandleToUlong(process->UniqueProcessId) / 4) & (PROCESS_ID_BUCKETS - 1));
+        if (DEBUG_PROCESS_COUNT)
+        {
+            if (pidBuckets[bucketIndex] == NULL)
+            {
+                fwprintf(LogFile, L"Step3:\tInitialAssign pidBuckets[%u]\n", bucketIndex);
+            }
+            else
+            {
+                fwprintf(LogFile, L"Step3:\tRe-Assign pidBuckets[%u]\n", bucketIndex);
+            }
+        }
+
         process->UniqueProcessKey = (ULONG_PTR)pidBuckets[bucketIndex];
         pidBuckets[bucketIndex] = process;
 
         if (DEBUG_PROCESS_COUNT)
         {
-            fwprintf(logFile, L"Step2:\tProcessName = %s\n", process->ImageName.Buffer);
-            fprintf(logFile, "Step3:\tUniqueProcessId=%p == pidBuckets[bucketIndex=%u]\n",
-                process->UniqueProcessId,
-                bucketIndex);
+            fprintf(LogFile, "Step4:\tUniqueProcessId = pidBuckets[%u] (%p)\n",
+                bucketIndex,
+                process->UniqueProcessId);
         }
-        
 
         if (PhEnableCycleCpuUsage)
         {
@@ -1934,7 +1885,7 @@ VOID PhProcessProviderUpdate(
 
             if (DEBUG_PROCESS_COUNT)
             {
-                fprintf(logFile, "Step4:\tsysTotalCycleTime1=%I64u\n", sysTotalCycleTime);
+                fprintf(LogFile, "Step5:\tsysTotalCycleTime1=%I64u\n", sysTotalCycleTime);
             }
 
 
@@ -1955,7 +1906,7 @@ VOID PhProcessProviderUpdate(
 
             if (DEBUG_PROCESS_COUNT)
             {
-                fprintf(logFile, "Step5:\tsysTotalCycleTime2=%I64u\n\n", sysTotalCycleTime);
+                fprintf(LogFile, "Step6:\tsysTotalCycleTime2=%I64u\n\n", sysTotalCycleTime);
             }
         }
     } while (process = PH_NEXT_PROCESS(process));
@@ -1972,7 +1923,7 @@ VOID PhProcessProviderUpdate(
 
         if (DEBUG_PROCESS_COUNT)
         {
-            fprintf(logFile, "Step6:\tInterruptsProcessInformation::KernelTime=%I64u; InterruptsProcessInformation::CycleTime=%I64u; sysTotalCycleTime3=%I64u\n",
+            fprintf(LogFile, "Step7:\tInterruptsProcessInformation::KernelTime=%I64u; InterruptsProcessInformation::CycleTime=%I64u; sysTotalCycleTime3=%I64u\n",
                 PhDpcsProcessInformation->KernelTime.QuadPart,
                 PhInterruptsProcessInformation->KernelTime.QuadPart,
                 sysTotalCycleTime);
@@ -1986,7 +1937,7 @@ VOID PhProcessProviderUpdate(
 
         if (DEBUG_PROCESS_COUNT)
         {
-            fprintf(logFile, "Step6:\tDpcsProcessInformation::KernelTime=%I64u; InterruptsProcessInformation::KernelTime=%I64u; sysTotalCycleTime3=%I64u\n",
+            fprintf(LogFile, "Step7:\tDpcsProcessInformation::KernelTime=%I64u; InterruptsProcessInformation::KernelTime=%I64u; sysTotalCycleTime3=%I64u\n",
                 PhDpcsProcessInformation->KernelTime.QuadPart,
                 PhInterruptsProcessInformation->KernelTime.QuadPart,
                 sysTotalCycleTime);
@@ -1995,10 +1946,35 @@ VOID PhProcessProviderUpdate(
 
     if (DEBUG_PROCESS_COUNT)
     {
-        fprintf(logFile, "Step7:\tHashSetSize = %d\n\n", PH_HASH_SET_SIZE(PhProcessHashSet));
+        unsigned nonZeroBuckets = 0;
+        for (unsigned i = 0; i < PROCESS_ID_BUCKETS; ++i) {
+            if (pidBuckets[i])
+                ++nonZeroBuckets;
+        }
+        fprintf(LogFile, "Step8:\tNonZeroBuckets = %u; ZeroBuckets=%u\n", nonZeroBuckets, PROCESS_ID_BUCKETS - nonZeroBuckets);
     }
 
-    // Look for dead processes.
+    if (DEBUG_PROCESS_COUNT || DEBUG_DEAD_PROCESSES)
+    {
+        unsigned nonZeroHash = 0;
+        for (unsigned i = 0; i < 256; ++i)
+        {
+            if (PhProcessHashSet[i])
+                ++nonZeroHash;
+        }
+
+        if(DEBUG_PROCESS_COUNT)
+        {
+            fprintf(LogFile, "Step9:\tNonZeroHash = %u; ZeroHash=%u\n\n", nonZeroHash, 256 - nonZeroHash);
+        }    
+        else
+        {
+            fprintf(LogFile, "Step0:\tNonZeroHash = %u; ZeroHash=%u\n\n", nonZeroHash, 256 - nonZeroHash);
+        }
+    }
+
+    //////////////////////////////////////////////////////////////////////////
+    // Look for dead processes and remove
     {
         PPH_LIST processesToRemove = NULL;
         ULONG i;
@@ -2006,13 +1982,33 @@ VOID PhProcessProviderUpdate(
         PPH_PROCESS_ITEM processItem;
         PSYSTEM_PROCESS_INFORMATION processEntry;
 
+
         for (i = 0; i < PH_HASH_SET_SIZE(PhProcessHashSet); i++)
         {
+            if (DEBUG_DEAD_PROCESSES)
+            {
+                fprintf(LogFile, "Step1:\tEntry=%u; Value=%p\n", i, PhProcessHashSet[i]);
+            }
+
             for (entry = PhProcessHashSet[i]; entry; entry = entry->Next)
             {
+                if (DEBUG_DEAD_PROCESSES)
+                {
+                    fprintf(LogFile, "Step3:\tHash=%u; Next=%p; NextEntry=%p\n", entry->Hash, entry->Next, entry->Next);
+                }
+
                 BOOLEAN processRemoved = FALSE;
 
                 processItem = CONTAINING_RECORD(entry, PH_PROCESS_ITEM, HashEntry);
+
+                if (DEBUG_DEAD_PROCESSES)
+                {
+                    if(processItem->FileName)
+                    {
+                        fwprintf(LogFile, L"FilePath=%s; Win32Path=%s\n", processItem->FileName->Buffer, processItem->FileNameWin32->Buffer);
+                    }
+                    fprintf(LogFile, "Step4:\tHash=%u; Next=%p\n", processItem->HashEntry.Hash, processItem->HashEntry.Next);
+                }
 
                 // Check if the process still exists. Note that we take into account PID re-use by
                 // checking CreateTime as well.
@@ -2026,7 +2022,8 @@ VOID PhProcessProviderUpdate(
                 }
                 else
                 {
-                    processEntry = pidBuckets[((HandleToUlong(processItem->ProcessId) / 4) & (PROCESS_ID_BUCKETS - 1))];
+                    ULONG bucketIndex = ((HandleToUlong(processItem->ProcessId) / 4) & (PROCESS_ID_BUCKETS - 1));
+                    processEntry = pidBuckets[bucketIndex];
 
                     while (processEntry && processEntry->UniqueProcessId != processItem->ProcessId)
                     {
@@ -2094,6 +2091,11 @@ VOID PhProcessProviderUpdate(
                     PhAddItemList(processesToRemove, processItem);
                 }
             }
+
+            if(PhProcessHashSet[i] && DEBUG_DEAD_PROCESSES)
+            {
+                fprintf(LogFile, "\n");
+            }
         }
 
         // Lock only if we have something to do.
@@ -2111,25 +2113,32 @@ VOID PhProcessProviderUpdate(
         }
     }
 
-    // Go through the queued process query data.
+    //////////////////////////////////////////////////////////////////////////
+    // Go through the queued process query data
+
     PhFlushProcessQueryData();
 
     if (sysTotalTime == 0)
+    {
         sysTotalTime = -1; // max. value
+    }
+        
     if (sysTotalCycleTime == 0)
+    {
         sysTotalCycleTime = -1;
+    }
 
     PhCpuTotalCycleDelta = sysTotalCycleTime;
 
     if (DEBUG_CPU_COUNTS)
     {
-        fprintf(logFile, "Total:\tsysTotalTime=%I64u; sysTotalCycleTime=%I64u\n", sysTotalTime, sysTotalCycleTime);
+        fprintf(LogFile, "Total:\tsysTotalTime=%I64u; sysTotalCycleTime=%I64u\n", sysTotalTime, sysTotalCycleTime);
     }
 
-    // Look for new processes and update existing ones.
-    process = PH_FIRST_PROCESS(processes);
+    //////////////////////////////////////////////////////////////////////////
+    // Look for new processes and update existing ones
 
-    const WCHAR* imageName = L"C:\\Users\\atatat\\Projects\\entropy_calculator\\build-cmake\\entropy_calculator\\Release\\entropy_calculator.exe";
+    process = PH_FIRST_PROCESS(processes);
 
     while (process)
     {
@@ -2137,6 +2146,7 @@ VOID PhProcessProviderUpdate(
 
         processItem = PhpLookupProcessItem(process->UniqueProcessId);
 
+        // Process does not exist, create new record
         if (!processItem)
         {
             PPH_PROCESS_RECORD processRecord;
@@ -2223,7 +2233,7 @@ VOID PhProcessProviderUpdate(
             {
                 DEBUG_ME = TRUE;
 
-                fprintf(logFile, "Step 1:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
+                fprintf(LogFile, "Step 1:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
                     processItem->CycleTimeDelta.Value, processItem->CycleTimeDelta.Delta);
             }
 
@@ -2233,7 +2243,7 @@ VOID PhProcessProviderUpdate(
 
             if (DEBUG_CPU_COUNTS && DEBUG_ME)
             {
-                fprintf(logFile, "Step 2:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
+                fprintf(LogFile, "Step 2:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
                     processItem->CycleTimeDelta.Value, processItem->CycleTimeDelta.Delta);
             }
 
@@ -2253,10 +2263,9 @@ VOID PhProcessProviderUpdate(
 
             if (DEBUG_CPU_COUNTS && DEBUG_ME)
             {
-                fprintf(logFile, "Step 3:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
+                fprintf(LogFile, "Step 3:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
                     processItem->CycleTimeDelta.Value, processItem->CycleTimeDelta.Delta);
             }
-
 
             processItem->TimeSequenceNumber++;
             PhAddItemCircularBuffer_ULONG64(&processItem->IoReadHistory, processItem->IoReadDelta.Delta);
@@ -2265,18 +2274,20 @@ VOID PhProcessProviderUpdate(
             PhAddItemCircularBuffer_SIZE_T(&processItem->PrivateBytesHistory, processItem->VmCounters.PagefileUsage);
 
             if (InterlockedExchange(&processItem->JustProcessed, 0) != 0)
+            {
                 modified = TRUE;
+            }
 
             if (PhEnableCycleCpuUsage)
             {
                 FLOAT totalDelta;
 
-                // TODO: use if needed OutputDebugStringW(messageBuffer);
+                // CPU payload calculated here
                 newCpuUsage = (FLOAT)processItem->CycleTimeDelta.Delta / sysTotalCycleTime;
 
                 if (DEBUG_ME)
                 {
-                    fprintf(logFile, "DEBUG_CPU_COUNTS && Calculation:\t(%I64u) %.6f / %I64u = %.6f\n",
+                    fprintf(LogFile, "DEBUG_CPU_COUNTS && Calculation:\t(%I64u) %.6f / %I64u = %.6f\n",
                         processItem->CycleTimeDelta.Delta,
                         (FLOAT)processItem->CycleTimeDelta.Delta,
                         sysTotalCycleTime, newCpuUsage);
@@ -2323,7 +2334,6 @@ VOID PhProcessProviderUpdate(
             PhAddItemCircularBuffer_FLOAT(&processItem->CpuUserHistory, userCpuUsage);
 
             // Max. values
-
             if (processItem->ProcessId)
             {
                 if (maxCpuValue < newCpuUsage)
@@ -2340,11 +2350,11 @@ VOID PhProcessProviderUpdate(
                 }
             }
 
+            //////////////////////////////////////////////////////////////////////////
             // Token information
-            if (
-                processItem->QueryHandle &&
-                processItem->ProcessId != SYSTEM_PROCESS_ID // System token can't be opened (dmex)
-                )
+
+            if (processItem->QueryHandle &&
+                processItem->ProcessId != SYSTEM_PROCESS_ID) // System token can't be opened (dmex)
             {
                 HANDLE tokenHandle;
 
@@ -2405,7 +2415,9 @@ VOID PhProcessProviderUpdate(
                 }
             }
 
+            //////////////////////////////////////////////////////////////////////////
             // Job
+
             if (processItem->QueryHandle)
             {
                 NTSTATUS status;
@@ -2458,7 +2470,9 @@ VOID PhProcessProviderUpdate(
                 }
             }
 
+            //////////////////////////////////////////////////////////////////////////
             // Debugged
+
             if (processItem->QueryHandle && !processItem->IsSubsystemProcess && !processItem->IsProtectedHandle)
             {
                 BOOLEAN isBeingDebugged = FALSE;
@@ -2472,6 +2486,7 @@ VOID PhProcessProviderUpdate(
                 }
             }
 
+            //////////////////////////////////////////////////////////////////////////
             // Suspended
             if (processItem->IsSuspended != isSuspended)
             {
@@ -2481,7 +2496,9 @@ VOID PhProcessProviderUpdate(
 
             processItem->IsPartiallySuspended = isPartiallySuspended;
 
+            //////////////////////////////////////////////////////////////////////////
             // .NET
+
             if (processItem->UpdateIsDotNet)
             {
                 BOOLEAN isDotNet;
@@ -2501,7 +2518,9 @@ VOID PhProcessProviderUpdate(
                 processItem->UpdateIsDotNet = FALSE;
             }
 
+            //////////////////////////////////////////////////////////////////////////
             // Immersive
+
             if (processItem->QueryHandle && WindowsVersion >= WINDOWS_8 && IsImmersiveProcess && !processItem->IsSubsystemProcess)
             {
                 BOOLEAN isImmersive;
@@ -2558,6 +2577,7 @@ VOID PhProcessProviderUpdate(
             // No reference added by PhpLookupProcessItem.
         }
 
+        //////////////////////////////////////////////////////////////////////////
         // Trick ourselves into thinking that the fake processes
         // are on the list.
         if (process == PhInterruptsProcessInformation)
@@ -2582,20 +2602,20 @@ VOID PhProcessProviderUpdate(
         }
     }
 
-    // Close log after update
-    fclose(logFile);
-
     if (PhProcessInformation)
         PhFree(PhProcessInformation);
 
     PhProcessInformation = processes;
 
+    //////////////////////////////////////////////////////////////////////////
     // History cannot be updated on the first run because the deltas are invalid. For example, the
     // I/O "deltas" will be huge because they are currently the raw accumulated values.
     if (runCount != 0)
     {
         if (PhEnableCycleCpuUsage)
+        {
             PhpUpdateCpuCycleUsageInformation(sysTotalCycleTime, sysIdleCycleTime);
+        }
 
         PhpUpdateSystemHistory();
 
@@ -2648,13 +2668,14 @@ VOID PhProcessProviderUpdate(
         }
     }
 
+    // Close log after update
+    fclose(LogFile);
+
     PhInvokeCallback(PhGetGeneralCallback(GeneralCallbackProcessProviderUpdatedEvent), NULL);
     runCount++;
 }
 
-PPH_PROCESS_RECORD PhpCreateProcessRecord(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    )
+PPH_PROCESS_RECORD PhpCreateProcessRecord(_In_ PPH_PROCESS_ITEM ProcessItem)
 {
     PPH_PROCESS_RECORD processRecord;
 
@@ -2678,11 +2699,7 @@ PPH_PROCESS_RECORD PhpCreateProcessRecord(
     return processRecord;
 }
 
-PPH_PROCESS_RECORD PhpSearchProcessRecordList(
-    _In_ PLARGE_INTEGER Time,
-    _Out_opt_ PULONG Index,
-    _Out_opt_ PULONG InsertIndex
-    )
+PPH_PROCESS_RECORD PhpSearchProcessRecordList(_In_ PLARGE_INTEGER Time, _Out_opt_ PULONG Index, _Out_opt_ PULONG InsertIndex)
 {
     PPH_PROCESS_RECORD processRecord;
     LONG low;
@@ -2737,15 +2754,15 @@ PPH_PROCESS_RECORD PhpSearchProcessRecordList(
     else
     {
         if (InsertIndex)
+        {
             *InsertIndex = i + (comparison > 0);
+        }
 
         return NULL;
     }
 }
 
-VOID PhpAddProcessRecord(
-    _Inout_ PPH_PROCESS_RECORD ProcessRecord
-    )
+VOID PhpAddProcessRecord(_Inout_ PPH_PROCESS_RECORD ProcessRecord)
 {
     PPH_PROCESS_RECORD processRecord;
     ULONG insertIndex;
@@ -2768,9 +2785,7 @@ VOID PhpAddProcessRecord(
     PhReleaseQueuedLockExclusive(&PhProcessRecordListLock);
 }
 
-VOID PhpRemoveProcessRecord(
-    _Inout_ PPH_PROCESS_RECORD ProcessRecord
-    )
+VOID PhpRemoveProcessRecord(_Inout_ PPH_PROCESS_RECORD ProcessRecord)
 {
     ULONG i;
     PPH_PROCESS_RECORD headProcessRecord;
@@ -2795,23 +2810,17 @@ VOID PhpRemoveProcessRecord(
     PhReleaseQueuedLockExclusive(&PhProcessRecordListLock);
 }
 
-VOID PhReferenceProcessRecord(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    )
+VOID PhReferenceProcessRecord(_In_ PPH_PROCESS_RECORD ProcessRecord)
 {
     _InterlockedIncrement(&ProcessRecord->RefCount);
 }
 
-BOOLEAN PhReferenceProcessRecordSafe(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    )
+BOOLEAN PhReferenceProcessRecordSafe(_In_ PPH_PROCESS_RECORD ProcessRecord)
 {
     return _InterlockedIncrementNoZero(&ProcessRecord->RefCount);
 }
 
-VOID PhReferenceProcessRecordForStatistics(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    )
+VOID PhReferenceProcessRecordForStatistics(_In_ PPH_PROCESS_RECORD ProcessRecord)
 {
     if (!(ProcessRecord->Flags & PH_PROCESS_RECORD_STAT_REF))
     {
@@ -2820,9 +2829,7 @@ VOID PhReferenceProcessRecordForStatistics(
     }
 }
 
-VOID PhDereferenceProcessRecord(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    )
+VOID PhDereferenceProcessRecord(_In_ PPH_PROCESS_RECORD ProcessRecord)
 {
     if (_InterlockedDecrement(&ProcessRecord->RefCount) == 0)
     {
@@ -2836,10 +2843,7 @@ VOID PhDereferenceProcessRecord(
     }
 }
 
-PPH_PROCESS_RECORD PhpFindProcessRecord(
-    _In_ PPH_PROCESS_RECORD ProcessRecord,
-    _In_ HANDLE ProcessId
-    )
+PPH_PROCESS_RECORD PhpFindProcessRecord(_In_ PPH_PROCESS_RECORD ProcessRecord, _In_ HANDLE ProcessId)
 {
     PPH_PROCESS_RECORD startProcessRecord;
 
@@ -2867,10 +2871,7 @@ PPH_PROCESS_RECORD PhpFindProcessRecord(
  * PhDereferenceProcessRecord() when you no longer need
  * the record.
  */
-PPH_PROCESS_RECORD PhFindProcessRecord(
-    _In_opt_ HANDLE ProcessId,
-    _In_ PLARGE_INTEGER Time
-    )
+PPH_PROCESS_RECORD PhFindProcessRecord(_In_opt_ HANDLE ProcessId, _In_ PLARGE_INTEGER Time)
 {
     PPH_PROCESS_RECORD processRecord;
     ULONG i;
@@ -2887,7 +2888,6 @@ PPH_PROCESS_RECORD PhFindProcessRecord(
     {
         // This is expected. Now we search backwards to find the newest matching element older than
         // the given time.
-
         found = FALSE;
 
         while (TRUE)
@@ -2954,9 +2954,7 @@ PPH_PROCESS_RECORD PhFindProcessRecord(
 /**
  * Deletes unused process records.
  */
-VOID PhPurgeProcessRecords(
-    VOID
-    )
+VOID PhPurgeProcessRecords(VOID)
 {
     PPH_PROCESS_RECORD processRecord;
     PPH_PROCESS_RECORD startProcessRecord;
@@ -3018,9 +3016,7 @@ VOID PhPurgeProcessRecords(
     }
 }
 
-PPH_PROCESS_ITEM PhReferenceProcessItemForParent(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    )
+PPH_PROCESS_ITEM PhReferenceProcessItemForParent(_In_ PPH_PROCESS_ITEM ProcessItem)
 {
     PPH_PROCESS_ITEM parentProcessItem;
 
@@ -3055,9 +3051,7 @@ PPH_PROCESS_ITEM PhReferenceProcessItemForParent(
     return parentProcessItem;
 }
 
-PPH_PROCESS_ITEM PhReferenceProcessItemForRecord(
-    _In_ PPH_PROCESS_RECORD Record
-    )
+PPH_PROCESS_ITEM PhReferenceProcessItemForRecord(_In_ PPH_PROCESS_RECORD Record)
 {
     PPH_PROCESS_ITEM processItem;
 
@@ -3085,9 +3079,7 @@ PPH_PROCESS_ITEM PhReferenceProcessItemForRecord(
     return processItem;
 }
 
-PVOID PhGetProcessInformationCache(
-    VOID
-    )
+PVOID PhGetProcessInformationCache(VOID)
 {
     return PhProcessInformation;
 }

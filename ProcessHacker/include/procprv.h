@@ -45,11 +45,9 @@ extern PH_UINT64_DELTA PhIoOtherDelta;
 
 extern PH_CIRCULAR_BUFFER_FLOAT PhCpuKernelHistory;
 extern PH_CIRCULAR_BUFFER_FLOAT PhCpuUserHistory;
-//extern PH_CIRCULAR_BUFFER_FLOAT PhCpuOtherHistory;
 
 extern PPH_CIRCULAR_BUFFER_FLOAT PhCpusKernelHistory;
 extern PPH_CIRCULAR_BUFFER_FLOAT PhCpusUserHistory;
-//extern PPH_CIRCULAR_BUFFER_FLOAT PhCpusOtherHistory;
 
 extern PH_CIRCULAR_BUFFER_ULONG64 PhIoReadHistory;
 extern PH_CIRCULAR_BUFFER_ULONG64 PhIoWriteHistory;
@@ -216,7 +214,6 @@ typedef struct _PH_PROCESS_ITEM
     PH_CIRCULAR_BUFFER_ULONG64 IoWriteHistory;
     PH_CIRCULAR_BUFFER_ULONG64 IoOtherHistory;
     PH_CIRCULAR_BUFFER_SIZE_T PrivateBytesHistory;
-    //PH_CIRCULAR_BUFFER_SIZE_T WorkingSetHistory;
 
     // New fields
     PH_UINTPTR_DELTA PrivateBytesDelta;
@@ -256,53 +253,27 @@ typedef struct _PH_PROCESS_RECORD
 } PH_PROCESS_RECORD, *PPH_PROCESS_RECORD;
 // end_phapppub
 
-BOOLEAN PhProcessProviderInitialization(
-    VOID
-    );
+BOOLEAN PhProcessProviderInitialization(VOID);
 
 // begin_phapppub
 PHAPPAPI
-PPH_STRING
-NTAPI
-PhGetClientIdName(
-    _In_ PCLIENT_ID ClientId
-    );
+PPH_STRING NTAPI PhGetClientIdName(_In_ PCLIENT_ID ClientId);
 
 PHAPPAPI
-PPH_STRING
-NTAPI
-PhGetClientIdNameEx(
-    _In_ PCLIENT_ID ClientId,
-    _In_opt_ PPH_STRING ProcessName
-    );
+PPH_STRING NTAPI PhGetClientIdNameEx(_In_ PCLIENT_ID ClientId, _In_opt_ PPH_STRING ProcessName);
 
 PHAPPAPI
-PWSTR
-NTAPI
-PhGetProcessPriorityClassString(
-    _In_ ULONG PriorityClass
-    );
+PWSTR NTAPI PhGetProcessPriorityClassString(_In_ ULONG PriorityClass);
 // end_phapppub
 
-PPH_PROCESS_ITEM PhCreateProcessItem(
-    _In_ HANDLE ProcessId
-    );
+PPH_PROCESS_ITEM PhCreateProcessItem(_In_ HANDLE ProcessId);
 
 // begin_phapppub
 PHAPPAPI
-PPH_PROCESS_ITEM
-NTAPI
-PhReferenceProcessItem(
-    _In_ HANDLE ProcessId
-    );
+PPH_PROCESS_ITEM NTAPI PhReferenceProcessItem(_In_ HANDLE ProcessId);
 
 PHAPPAPI
-VOID
-NTAPI
-PhEnumProcessItems(
-    _Out_opt_ PPH_PROCESS_ITEM **ProcessItems,
-    _Out_ PULONG NumberOfProcessItems
-    );
+VOID NTAPI PhEnumProcessItems(_Out_opt_ PPH_PROCESS_ITEM **ProcessItems, _Out_ PULONG NumberOfProcessItems);
 // end_phapppub
 
 typedef struct _PH_VERIFY_FILE_INFO *PPH_VERIFY_FILE_INFO;
@@ -310,79 +281,48 @@ typedef struct _PH_VERIFY_FILE_INFO *PPH_VERIFY_FILE_INFO;
 VERIFY_RESULT PhVerifyFileWithAdditionalCatalog(
     _In_ PPH_VERIFY_FILE_INFO Information,
     _In_opt_ PPH_STRING PackageFullName,
-    _Out_opt_ PPH_STRING *SignerName
-    );
+    _Out_opt_ PPH_STRING *SignerName);
 
 VERIFY_RESULT PhVerifyFileCached(
     _In_ PPH_STRING FileName,
     _In_opt_ PPH_STRING PackageFullName,
     _Out_opt_ PPH_STRING *SignerName,
-    _In_ BOOLEAN CachedOnly
-    );
+    _In_ BOOLEAN CachedOnly);
 
 // begin_phapppub
 PHAPPAPI
-BOOLEAN
-NTAPI
-PhGetStatisticsTime(
+BOOLEAN NTAPI PhGetStatisticsTime(
     _In_opt_ PPH_PROCESS_ITEM ProcessItem,
     _In_ ULONG Index,
-    _Out_ PLARGE_INTEGER Time
-    );
+    _Out_ PLARGE_INTEGER Time);
 
 PHAPPAPI
-PPH_STRING
-NTAPI
-PhGetStatisticsTimeString(
+PPH_STRING NTAPI PhGetStatisticsTimeString(
     _In_opt_ PPH_PROCESS_ITEM ProcessItem,
-    _In_ ULONG Index
-    );
+    _In_ ULONG Index);
 // end_phapppub
 
-VOID PhFlushProcessQueryData(
-    VOID
-    );
+VOID PhFlushProcessQueryData(VOID);
 
-VOID PhProcessProviderUpdate(
-    _In_ PVOID Object
-    );
+VOID PhProcessProviderUpdate(_In_ PVOID Object);
 
 // begin_phapppub
 PHAPPAPI
-VOID
-NTAPI
-PhReferenceProcessRecord(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    );
+VOID NTAPI PhReferenceProcessRecord(_In_ PPH_PROCESS_RECORD ProcessRecord);
 
 PHAPPAPI
-BOOLEAN
-NTAPI
-PhReferenceProcessRecordSafe(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    );
+BOOLEAN NTAPI PhReferenceProcessRecordSafe(_In_ PPH_PROCESS_RECORD ProcessRecord);
 
 PHAPPAPI
-VOID
-NTAPI
-PhReferenceProcessRecordForStatistics(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    );
+VOID NTAPI PhReferenceProcessRecordForStatistics(_In_ PPH_PROCESS_RECORD ProcessRecord);
 
 PHAPPAPI
-VOID
-NTAPI
-PhDereferenceProcessRecord(
-    _In_ PPH_PROCESS_RECORD ProcessRecord
-    );
+VOID NTAPI PhDereferenceProcessRecord(_In_ PPH_PROCESS_RECORD ProcessRecord);
 
 PHAPPAPI
-PPH_PROCESS_RECORD
-NTAPI
-PhFindProcessRecord(
+PPH_PROCESS_RECORD NTAPI PhFindProcessRecord(
     _In_opt_ HANDLE ProcessId,
-    _In_ PLARGE_INTEGER Time
-    );
+    _In_ PLARGE_INTEGER Time);
 // end_phapppub
 
 VOID PhPurgeProcessRecords(
@@ -391,26 +331,14 @@ VOID PhPurgeProcessRecords(
 
 // begin_phapppub
 PHAPPAPI
-PPH_PROCESS_ITEM
-NTAPI
-PhReferenceProcessItemForParent(
-    _In_ PPH_PROCESS_ITEM ProcessItem
-    );
+PPH_PROCESS_ITEM NTAPI PhReferenceProcessItemForParent(_In_ PPH_PROCESS_ITEM ProcessItem);
 
 PHAPPAPI
-PPH_PROCESS_ITEM
-NTAPI
-PhReferenceProcessItemForRecord(
-    _In_ PPH_PROCESS_RECORD Record
-    );
+PPH_PROCESS_ITEM NTAPI PhReferenceProcessItemForRecord(_In_ PPH_PROCESS_RECORD Record);
 // end_phapppub
 
 // begin_phapppub
 PHAPPAPI
-PVOID
-NTAPI
-PhGetProcessInformationCache(
-    VOID
-    );
+PVOID NTAPI PhGetProcessInformationCache(VOID);
 // end_phapppub
 #endif
