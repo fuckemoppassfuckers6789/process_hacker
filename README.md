@@ -10,6 +10,8 @@
 
 A fork of official **Process Hacker** utility, free, powerful, multi-purpose tool that helps you monitor system resources, debug software and detect malware.
 
+Fork created with the research purpose.
+
 * [Official Website](https://processhacker.sourceforge.io/)
 * [Nightly Builds](https://wj32.org/processhacker/nightly.php)
 
