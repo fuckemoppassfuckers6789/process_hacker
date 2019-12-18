@@ -1737,6 +1737,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
     BOOL DEBUG_CPU_COUNTS = FALSE;
     BOOL DEBUG_PROCESS_COUNT = FALSE;
     BOOL DEBUG_DEAD_PROCESSES = TRUE;
+    BOOLEAN DEBUG_CPU_PAYLOAD = FALSE;
     // END DEBUG SECTION
     //////////////////////////////////////////////////////////////////////////
 
@@ -2193,75 +2194,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             // Move timers and counters from SYSTEM_PROCESS_INFORMATION instance to PH_PROCESS_ITEM instance
             // Quite important for CPU counter calculation
             PhpUpdateDynamicInfoProcessItem(processItem, process);
-#if 0
-            PH_UINT64_DELTA testDeltas1[] = {
-            {0, 0}, { 100, 200 },
-            { 200, 100 }, { 300, 300 },
-            {158865758, 626850742}, { 481969383, 593782762 },
-            { 488994472, 844469665 }, { 775386573, 101797033 },
-            { 904345960, 800547997 }, { 166096708, 330748106 },
-            { 171290043, 954895732 }, { 363515836, 607161380 },
-            { 909674018, 109536030 }, { 900596171, 683164617 },
-            { 992458334, 413656073 }, { 151685041, 542061916 },
-            { 921332999, 509260515 }, { 887621527, 960831819 },
-            { 200754590, 884099444 }, { 533657655, 503119805 },
-            { 333246272, 144474075 }, { 913188746, 404588247 },
-            { 966208516, 907698129 }, { 146369429, 965508310 },
-            { 201433678, 754845193 }, { 189487568, 683826398 },
-            { 214431055, 812368516 }, { 747991654, 563057360 },
-            { 664146099, 284580575 }, { 577813916, 326417460 },
-            { 856332566, 506674789 }, { 222149161, 876275024 },
-            { 450295251, 771553699 }, { 865277009, 482898958 },
-            {64222878, 579360207}, { 30037246, 262043633 },
-            { 691733101, 779127441 }, { 199662558, 592002424 },
-            {350047833, 407979610}, { 395645701, 243226492 },
-            {466437543, 377283549}, { 700456358, 899379943 },
-            {552494797, 580888939}, { 96433442, 213689147 }};
 
-            PH_UINT64_DELTA testDeltas2[] = {
-            {0, 0}, { 100, 200 },
-            { 200, 100 }, { 300, 300 },
-            {158865758, 626850742}, { 481969383, 593782762 },
-            { 488994472, 844469665 }, { 775386573, 101797033 },
-            { 904345960, 800547997 }, { 166096708, 330748106 },
-            { 171290043, 954895732 }, { 363515836, 607161380 },
-            { 909674018, 109536030 }, { 900596171, 683164617 },
-            { 992458334, 413656073 }, { 151685041, 542061916 },
-            { 921332999, 509260515 }, { 887621527, 960831819 },
-            { 200754590, 884099444 }, { 533657655, 503119805 },
-            { 333246272, 144474075 }, { 913188746, 404588247 },
-            { 966208516, 907698129 }, { 146369429, 965508310 },
-            { 201433678, 754845193 }, { 189487568, 683826398 },
-            { 214431055, 812368516 }, { 747991654, 563057360 },
-            { 664146099, 284580575 }, { 577813916, 326417460 },
-            { 856332566, 506674789 }, { 222149161, 876275024 },
-            { 450295251, 771553699 }, { 865277009, 482898958 },
-            {64222878, 579360207   }, { 30037246, 262043633 },
-            { 691733101, 779127441 }, { 199662558, 592002424 },
-            {350047833, 407979610  }, { 395645701, 243226492 },
-            {466437543, 377283549  }, { 700456358, 899379943 },
-            {552494797, 580888939  }, { 96433442, 213689147 } };
-
-            LONGLONG QuadPart = process->KernelTime.QuadPart;
-            for(j = 0; j < 44; ++j)
-            {
-                UpdateDelta(&(testDeltas1[j]), QuadPart);
-                PhUpdateDelta(&(testDeltas2[j]), QuadPart);
-            }
-
-            for (j = 0; j < 44; ++j)
-            {
-                if (testDeltas1[j].Value != testDeltas2[j].Value)
-                {
-                    DebugBreak();
-                }
-
-                if(testDeltas1[j].Delta != testDeltas2[j].Delta)
-                {
-                    DebugBreak();
-                }
-            }
-#endif
             // Initialize the deltas
             //replace PhUpdateDelta
             UpdateDelta64(&processItem->CpuKernelDelta, process->KernelTime.QuadPart);
@@ -2277,12 +2210,14 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             UpdateDelta64(&processItem->CycleTimeDelta, process->CycleTime);
             UpdateDeltaUint(&processItem->PrivateBytesDelta, process->PagefileUsage);
 
+            // This values have been aquired from thread information
             processItem->IsSuspended = isSuspended;
             processItem->IsPartiallySuspended = isPartiallySuspended;
 
-            // If this is the first run of the provider, queue the
-            // process query tasks. Otherwise, perform stage 1
-            // processing now and queue stage 2 processing.
+            //////////////////////////////////////////////////////////////////////////
+            // TODO: [#4][low-priority] It's completely unclear what's happening here. Sort it out only if necessary.
+            // If this is the first run of the provider, queue the process query tasks
+            // Otherwise, perform stage 1 processing now and queue stage 2 processing
             if (runCount > 0)
             {
                 PH_PROCESS_QUERY_S1_DATA data;
@@ -2299,13 +2234,19 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
                 PhpQueueProcessQueryStage1(processItem);
             }
 
+            //////////////////////////////////////////////////////////////////////////
+
+            // TODO: [#4] One more unclear stuff. Hope we can skip it
             // Add pending service items to the process item.
             PhUpdateProcessItemServices(processItem);
 
             // Add the process item to the hashtable.
-            PhAcquireQueuedLockExclusive(&PhProcessHashSetLock);
-            PhpAddProcessItem(processItem);
-            PhReleaseQueuedLockExclusive(&PhProcessHashSetLock);
+            {
+                PhAcquireQueuedLockExclusive(&PhProcessHashSetLock);
+                // Add item to PhProcessHashSet[256]
+                PhpAddProcessItem(processItem);
+                PhReleaseQueuedLockExclusive(&PhProcessHashSetLock);
+            }
 
             // Raise the process added event.
             PhInvokeCallback(PhGetGeneralCallback(GeneralCallbackProcessProviderAddedEvent), processItem);
@@ -2316,7 +2257,6 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
         }
         else
         {
-            BOOLEAN DEBUG_ME = FALSE;
             BOOLEAN modified = FALSE;
             BOOLEAN isSuspended;
             BOOLEAN isPartiallySuspended;
@@ -2327,7 +2267,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
 
             if (DEBUG_CPU_COUNTS && processItem->FileNameWin32 && (0 == wcscmp(processItem->FileNameWin32->Buffer, imageName)))
             {
-                DEBUG_ME = TRUE;
+                DEBUG_CPU_PAYLOAD = TRUE;
 
                 fprintf(LogFile, "Step 1:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
                     processItem->CycleTimeDelta.Value, processItem->CycleTimeDelta.Delta);
@@ -2337,7 +2277,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             PhpUpdateDynamicInfoProcessItem(processItem, process);
             PhpFillProcessItemExtension(processItem, process);
 
-            if (DEBUG_CPU_COUNTS && DEBUG_ME)
+            if (DEBUG_CPU_COUNTS && DEBUG_CPU_PAYLOAD)
             {
                 fprintf(LogFile, "Step 2:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
                     processItem->CycleTimeDelta.Value, processItem->CycleTimeDelta.Delta);
@@ -2357,7 +2297,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             UpdateDelta64(&processItem->CycleTimeDelta, process->CycleTime);  // Usage
             UpdateDeltaUint(&processItem->PrivateBytesDelta, process->PagefileUsage);
 
-            if (DEBUG_CPU_COUNTS && DEBUG_ME)
+            if (DEBUG_CPU_COUNTS && DEBUG_CPU_PAYLOAD)
             {
                 fprintf(LogFile, "Step 3:\tCycleTimeDeltaValue=%I64u; CycleTimeDelta=%I64u\n",
                     processItem->CycleTimeDelta.Value, processItem->CycleTimeDelta.Delta);
@@ -2381,7 +2321,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
                 // CPU payload calculated here
                 newCpuUsage = (FLOAT)processItem->CycleTimeDelta.Delta / sysTotalCycleTime;
 
-                if (DEBUG_ME)
+                if (DEBUG_CPU_PAYLOAD)
                 {
                     fprintf(LogFile, "DEBUG_CPU_COUNTS && Calculation:\t(%I64u) %.6f / %I64u = %.6f\n",
                         processItem->CycleTimeDelta.Delta,

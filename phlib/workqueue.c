@@ -173,8 +173,7 @@ VOID PhQueueItemWorkQueue(
  * \param WorkQueue A work queue object.
  * \param Function A function to execute.
  * \param Context A user-defined value to pass to the function.
- * \param DeleteFunction A callback function that is executed when the work queue item is about to
- * be freed.
+ * \param DeleteFunction A callback function that is executed when the work queue item is about to be freed.
  * \param Environment Execution environment parameters (e.g. priority).
  */
 VOID PhQueueItemWorkQueueEx(
