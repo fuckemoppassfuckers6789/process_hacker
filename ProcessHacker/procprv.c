@@ -1408,7 +1408,6 @@ VOID PhpUpdateCpuCycleInformation(_Out_ PULONG64 IdleCycleTime)
 
     for (i = 0; i < (ULONG)PhSystemBasicInformation.NumberOfProcessors; i++)
     {
-        //PhUpdateDelta(&PhCpusIdleCycleDelta[i], PhCpuIdleCycleTime[i].QuadPart);
         total += PhCpuIdleCycleTime[i].QuadPart;
     }
 
