@@ -240,6 +240,7 @@ BOOLEAN PhProcessProviderInitialization(VOID)
 
     PhProcessRecordList = PhCreateList(40);
 
+    // Initialize DPCs and Interrupt processes
     PhDpcsProcessInformation = PhAllocateZero(sizeof(SYSTEM_PROCESS_INFORMATION) + sizeof(SYSTEM_PROCESS_INFORMATION_EXTENSION));
     RtlInitUnicodeString(&PhDpcsProcessInformation->ImageName, L"DPCs");
     PhDpcsProcessInformation->UniqueProcessId = DPCS_PROCESS_ID;
@@ -509,6 +510,7 @@ FORCEINLINE BOOLEAN PhCompareProcessItem(_In_ PPH_PROCESS_ITEM Value1, _In_ PPH_
     return Value1->ProcessId == Value2->ProcessId;
 }
 
+// Hash function
 FORCEINLINE ULONG PhHashProcessItem(_In_ PPH_PROCESS_ITEM Value)
 {
     return HandleToUlong(Value->ProcessId) / 4;
@@ -516,7 +518,6 @@ FORCEINLINE ULONG PhHashProcessItem(_In_ PPH_PROCESS_ITEM Value)
 
 /**
  * Finds a process item in the hash set.
- *
  * \param ProcessId The process ID of the process item.
  * \remarks The hash set must be locked before calling this function. The reference count of the
  * found process item is not incremented.
@@ -1057,6 +1058,7 @@ VOID PhpFillProcessItemStage2(_In_ PPH_PROCESS_QUERY_S2_DATA Data)
     }
 }
 
+// Copy Process Extension information from SYSTEM_PROCESS_INFORMATION to PH_PROCESS_ITEM
 VOID PhpFillProcessItemExtension(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYSTEM_PROCESS_INFORMATION Process)
 {
     PSYSTEM_PROCESS_INFORMATION_EXTENSION processExtension;
@@ -1070,6 +1072,7 @@ VOID PhpFillProcessItemExtension(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYS
     ProcessItem->ProcessSequenceNumber = processExtension->ProcessSequenceNumber;
 }
 
+// Copy process information from SYSTEM_PROCESS_INFORMATION to PH_PROCESS_ITEM
 VOID PhpFillProcessItem(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYSTEM_PROCESS_INFORMATION Process)
 {
     ProcessItem->ParentProcessId = Process->InheritedFromUniqueProcessId;
@@ -1265,6 +1268,7 @@ VOID PhpFillProcessItem(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYSTEM_PROCE
     }
 }
 
+// Move timers and counters from SYSTEM_PROCESS_INFORMATION instance to PH_PROCESS_ITEM instance
 FORCEINLINE VOID PhpUpdateDynamicInfoProcessItem(_Inout_ PPH_PROCESS_ITEM ProcessItem, _In_ PSYSTEM_PROCESS_INFORMATION Process)
 {
     ProcessItem->BasePriority = Process->BasePriority;
@@ -1305,9 +1309,9 @@ VOID PhpUpdatePerfInformation(VOID)
         NULL
         );
 
-    PhUpdateDelta(&PhIoReadDelta, PhPerfInformation.IoReadTransferCount.QuadPart);
-    PhUpdateDelta(&PhIoWriteDelta, PhPerfInformation.IoWriteTransferCount.QuadPart);
-    PhUpdateDelta(&PhIoOtherDelta, PhPerfInformation.IoOtherTransferCount.QuadPart);
+    UpdateDelta64(&PhIoReadDelta, PhPerfInformation.IoReadTransferCount.QuadPart);
+    UpdateDelta64(&PhIoWriteDelta, PhPerfInformation.IoWriteTransferCount.QuadPart);
+    UpdateDelta64(&PhIoOtherDelta, PhPerfInformation.IoOtherTransferCount.QuadPart);
 }
 
 VOID PhpUpdateCpuInformation(_In_ BOOLEAN SetCpuUsage, _Out_ PULONG64 TotalTime)
@@ -1339,9 +1343,9 @@ VOID PhpUpdateCpuInformation(_In_ BOOLEAN SetCpuUsage, _Out_ PULONG64 TotalTime)
         PhCpuTotals.KernelTime.QuadPart += cpuInfo->KernelTime.QuadPart;
         PhCpuTotals.UserTime.QuadPart += cpuInfo->UserTime.QuadPart;
 
-        PhUpdateDelta(&PhCpusKernelDelta[i], cpuInfo->KernelTime.QuadPart);
-        PhUpdateDelta(&PhCpusUserDelta[i], cpuInfo->UserTime.QuadPart);
-        PhUpdateDelta(&PhCpusIdleDelta[i], cpuInfo->IdleTime.QuadPart);
+        UpdateDelta64(&PhCpusKernelDelta[i], cpuInfo->KernelTime.QuadPart);
+        UpdateDelta64(&PhCpusUserDelta[i], cpuInfo->UserTime.QuadPart);
+        UpdateDelta64(&PhCpusIdleDelta[i], cpuInfo->IdleTime.QuadPart);
 
         if (SetCpuUsage)
         {
@@ -1360,9 +1364,9 @@ VOID PhpUpdateCpuInformation(_In_ BOOLEAN SetCpuUsage, _Out_ PULONG64 TotalTime)
         }
     }
 
-    PhUpdateDelta(&PhCpuKernelDelta, PhCpuTotals.KernelTime.QuadPart);
-    PhUpdateDelta(&PhCpuUserDelta, PhCpuTotals.UserTime.QuadPart);
-    PhUpdateDelta(&PhCpuIdleDelta, PhCpuTotals.IdleTime.QuadPart);
+    UpdateDelta64(&PhCpuKernelDelta, PhCpuTotals.KernelTime.QuadPart);
+    UpdateDelta64(&PhCpuUserDelta, PhCpuTotals.UserTime.QuadPart);
+    UpdateDelta64(&PhCpuIdleDelta, PhCpuTotals.IdleTime.QuadPart);
 
     totalTime = PhCpuKernelDelta.Delta + PhCpuUserDelta.Delta + PhCpuIdleDelta.Delta;
 
@@ -1408,7 +1412,7 @@ VOID PhpUpdateCpuCycleInformation(_Out_ PULONG64 IdleCycleTime)
         total += PhCpuIdleCycleTime[i].QuadPart;
     }
 
-    PhUpdateDelta(&PhCpuIdleCycleDelta, total);
+    UpdateDelta64(&PhCpuIdleCycleDelta, total);
     *IdleCycleTime = PhCpuIdleCycleDelta.Delta;
 
     // System
@@ -1427,7 +1431,7 @@ VOID PhpUpdateCpuCycleInformation(_Out_ PULONG64 IdleCycleTime)
         total += PhCpuSystemCycleTime[i].QuadPart;
     }
 
-    PhUpdateDelta(&PhCpuSystemCycleDelta, total);
+    UpdateDelta64(&PhCpuSystemCycleDelta, total);
 }
 
 VOID PhpUpdateCpuCycleUsageInformation(_In_ ULONG64 TotalCycleTime, _In_ ULONG64 IdleCycleTime)
@@ -1651,6 +1655,7 @@ VOID PhFlushProcessQueryData(VOID)
     }
 }
 
+// Iterate over all process threads, requesting their status
 VOID PhpGetProcessThreadInformation(
     _In_ PSYSTEM_PROCESS_INFORMATION Process,
     _Out_opt_ PBOOLEAN IsSuspended,
@@ -1792,7 +1797,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
     PhTotalThreads = 0;
     PhTotalHandles = 0;
 
-    // NtQuerySystemInformation() called here
+    // NtQuerySystemInformation() called here, filling buffer with SYSTEM_PROCESS_INFORMATION instances
     if (!NT_SUCCESS(PhEnumProcesses(&processes)))
         return;
 
@@ -1823,6 +1828,7 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
     // Zero HashSet buckets first.
     memset(pidBuckets, 0, sizeof(pidBuckets));
 
+    // SYSTEM_PROCESS_INFORMATION type, 1st iteration to fill the HashSet
     process = PH_FIRST_PROCESS(processes);
 
     // Iterate over processes list, fill out hash set of processes
@@ -1855,8 +1861,10 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             fwprintf(LogFile, L"Step2:\tProcessName = %s\n", process->ImageName.Buffer);
         }
 
-        // pidBuckets = pointers to SYSTEM_PROCESS_INFORMATION, 64 total. First string seems to be hash function
+        // pidBuckets = pointers to SYSTEM_PROCESS_INFORMATION, 64 total.
+        // This string seems to be hash function
         bucketIndex = ((HandleToUlong(process->UniqueProcessId) / 4) & (PROCESS_ID_BUCKETS - 1));
+
         if (DEBUG_PROCESS_COUNT)
         {
             if (pidBuckets[bucketIndex] == NULL)
@@ -1869,6 +1877,8 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             }
         }
 
+        // Make chain of processes in one bucket
+        // (point new process to previous in bucket, point bucket to a process)
         process->UniqueProcessKey = (ULONG_PTR)pidBuckets[bucketIndex];
         pidBuckets[bucketIndex] = process;
 
@@ -1979,15 +1989,15 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
         PPH_LIST processesToRemove = NULL;
         ULONG i;
         PPH_HASH_ENTRY entry;
+
         PPH_PROCESS_ITEM processItem;
         PSYSTEM_PROCESS_INFORMATION processEntry;
-
 
         for (i = 0; i < PH_HASH_SET_SIZE(PhProcessHashSet); i++)
         {
             if (DEBUG_DEAD_PROCESSES)
             {
-                fprintf(LogFile, "Step1:\tEntry=%u; Value=%p\n", i, PhProcessHashSet[i]);
+                fprintf(LogFile, "Step1:\tEntry=%03u; Value=%p\n", i, PhProcessHashSet[i]);
             }
 
             for (entry = PhProcessHashSet[i]; entry; entry = entry->Next)
@@ -2010,8 +2020,12 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
                     fprintf(LogFile, "Step4:\tHash=%u; Next=%p\n", processItem->HashEntry.Hash, processItem->HashEntry.Next);
                 }
 
+                //////////////////////////////////////////////////////////////////////////
                 // Check if the process still exists. Note that we take into account PID re-use by
                 // checking CreateTime as well.
+
+                // First check DPCs and Interrupt special processes
+                ULONG bucketIndex = 0;
                 if (processItem->ProcessId == DPCS_PROCESS_ID)
                 {
                     processEntry = PhDpcsProcessInformation;
@@ -2022,9 +2036,10 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
                 }
                 else
                 {
-                    ULONG bucketIndex = ((HandleToUlong(processItem->ProcessId) / 4) & (PROCESS_ID_BUCKETS - 1));
+                    bucketIndex = ((HandleToUlong(processItem->ProcessId) / 4) & (PROCESS_ID_BUCKETS - 1));
                     processEntry = pidBuckets[bucketIndex];
 
+                    // Iterate over all existing processes
                     while (processEntry && processEntry->UniqueProcessId != processItem->ProcessId)
                     {
                         processEntry = (PSYSTEM_PROCESS_INFORMATION)processEntry->UniqueProcessKey;
@@ -2034,12 +2049,16 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
                 if (WindowsVersion >= WINDOWS_10_RS3 && !PhIsExecutingInWow64())
                 {
                     if (!processEntry || PH_PROCESS_EXTENSION(processEntry)->ProcessSequenceNumber != processItem->ProcessSequenceNumber)
+                    {
                         processRemoved = TRUE;
+                    }
                 }
                 else
                 {
                     if (!processEntry || processEntry->CreateTime.QuadPart != processItem->CreateTime.QuadPart)
+                    {
                         processRemoved = TRUE;
+                    }
                 }
 
                 if (processRemoved)
@@ -2138,17 +2157,19 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
     //////////////////////////////////////////////////////////////////////////
     // Look for new processes and update existing ones
 
+    // SYSTEM_PROCESS_INFORMATION type, 2nd iteration to update process info
     process = PH_FIRST_PROCESS(processes);
 
     while (process)
     {
         PPH_PROCESS_ITEM processItem;
 
+        // Look for this process in the HashSet
         processItem = PhpLookupProcessItem(process->UniqueProcessId);
 
         // Process does not exist, create new record
-        if (!processItem)
-        {
+        if (!processItem) {
+            int j = 0;
             PPH_PROCESS_RECORD processRecord;
             BOOLEAN isSuspended;
             BOOLEAN isPartiallySuspended;
@@ -2160,26 +2181,102 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             PhpFillProcessItemExtension(processItem, process);
             processItem->TimeSequenceNumber = PhTimeSequenceNumber;
 
+            // For some reason create one more "process record"
+            // Linked list of PH_PROCESS_RECORD
+            // Insert the process record, keeping the list sorted (?s)
             processRecord = PhpCreateProcessRecord(processItem);
             PhpAddProcessRecord(processRecord);
             processItem->Record = processRecord;
 
+            // Iterate over all process threads, requesting their status
             PhpGetProcessThreadInformation(process, &isSuspended, &isPartiallySuspended, &contextSwitches);
-            PhpUpdateDynamicInfoProcessItem(processItem, process);
 
-            // Initialize the deltas.
-            PhUpdateDelta(&processItem->CpuKernelDelta, process->KernelTime.QuadPart);
-            PhUpdateDelta(&processItem->CpuUserDelta, process->UserTime.QuadPart);
-            PhUpdateDelta(&processItem->IoReadDelta, process->ReadTransferCount.QuadPart);
-            PhUpdateDelta(&processItem->IoWriteDelta, process->WriteTransferCount.QuadPart);
-            PhUpdateDelta(&processItem->IoOtherDelta, process->OtherTransferCount.QuadPart);
-            PhUpdateDelta(&processItem->IoReadCountDelta, process->ReadOperationCount.QuadPart);
-            PhUpdateDelta(&processItem->IoWriteCountDelta, process->WriteOperationCount.QuadPart);
-            PhUpdateDelta(&processItem->IoOtherCountDelta, process->OtherOperationCount.QuadPart);
-            PhUpdateDelta(&processItem->ContextSwitchesDelta, contextSwitches);
-            PhUpdateDelta(&processItem->PageFaultsDelta, process->PageFaultCount);
-            PhUpdateDelta(&processItem->CycleTimeDelta, process->CycleTime);
-            PhUpdateDelta(&processItem->PrivateBytesDelta, process->PagefileUsage);
+            // Move timers and counters from SYSTEM_PROCESS_INFORMATION instance to PH_PROCESS_ITEM instance
+            // Quite important for CPU counter calculation
+            PhpUpdateDynamicInfoProcessItem(processItem, process);
+#if 0
+            PH_UINT64_DELTA testDeltas1[] = {
+            {0, 0}, { 100, 200 },
+            { 200, 100 }, { 300, 300 },
+            {158865758, 626850742}, { 481969383, 593782762 },
+            { 488994472, 844469665 }, { 775386573, 101797033 },
+            { 904345960, 800547997 }, { 166096708, 330748106 },
+            { 171290043, 954895732 }, { 363515836, 607161380 },
+            { 909674018, 109536030 }, { 900596171, 683164617 },
+            { 992458334, 413656073 }, { 151685041, 542061916 },
+            { 921332999, 509260515 }, { 887621527, 960831819 },
+            { 200754590, 884099444 }, { 533657655, 503119805 },
+            { 333246272, 144474075 }, { 913188746, 404588247 },
+            { 966208516, 907698129 }, { 146369429, 965508310 },
+            { 201433678, 754845193 }, { 189487568, 683826398 },
+            { 214431055, 812368516 }, { 747991654, 563057360 },
+            { 664146099, 284580575 }, { 577813916, 326417460 },
+            { 856332566, 506674789 }, { 222149161, 876275024 },
+            { 450295251, 771553699 }, { 865277009, 482898958 },
+            {64222878, 579360207}, { 30037246, 262043633 },
+            { 691733101, 779127441 }, { 199662558, 592002424 },
+            {350047833, 407979610}, { 395645701, 243226492 },
+            {466437543, 377283549}, { 700456358, 899379943 },
+            {552494797, 580888939}, { 96433442, 213689147 }};
+
+            PH_UINT64_DELTA testDeltas2[] = {
+            {0, 0}, { 100, 200 },
+            { 200, 100 }, { 300, 300 },
+            {158865758, 626850742}, { 481969383, 593782762 },
+            { 488994472, 844469665 }, { 775386573, 101797033 },
+            { 904345960, 800547997 }, { 166096708, 330748106 },
+            { 171290043, 954895732 }, { 363515836, 607161380 },
+            { 909674018, 109536030 }, { 900596171, 683164617 },
+            { 992458334, 413656073 }, { 151685041, 542061916 },
+            { 921332999, 509260515 }, { 887621527, 960831819 },
+            { 200754590, 884099444 }, { 533657655, 503119805 },
+            { 333246272, 144474075 }, { 913188746, 404588247 },
+            { 966208516, 907698129 }, { 146369429, 965508310 },
+            { 201433678, 754845193 }, { 189487568, 683826398 },
+            { 214431055, 812368516 }, { 747991654, 563057360 },
+            { 664146099, 284580575 }, { 577813916, 326417460 },
+            { 856332566, 506674789 }, { 222149161, 876275024 },
+            { 450295251, 771553699 }, { 865277009, 482898958 },
+            {64222878, 579360207   }, { 30037246, 262043633 },
+            { 691733101, 779127441 }, { 199662558, 592002424 },
+            {350047833, 407979610  }, { 395645701, 243226492 },
+            {466437543, 377283549  }, { 700456358, 899379943 },
+            {552494797, 580888939  }, { 96433442, 213689147 } };
+
+            LONGLONG QuadPart = process->KernelTime.QuadPart;
+            for(j = 0; j < 44; ++j)
+            {
+                UpdateDelta(&(testDeltas1[j]), QuadPart);
+                PhUpdateDelta(&(testDeltas2[j]), QuadPart);
+            }
+
+            for (j = 0; j < 44; ++j)
+            {
+                if (testDeltas1[j].Value != testDeltas2[j].Value)
+                {
+                    DebugBreak();
+                }
+
+                if(testDeltas1[j].Delta != testDeltas2[j].Delta)
+                {
+                    DebugBreak();
+                }
+            }
+#endif
+            // Initialize the deltas
+            //replace PhUpdateDelta
+            UpdateDelta64(&processItem->CpuKernelDelta, process->KernelTime.QuadPart);
+            UpdateDelta64(&processItem->CpuUserDelta, process->UserTime.QuadPart);
+            UpdateDelta64(&processItem->IoReadDelta, process->ReadTransferCount.QuadPart);
+            UpdateDelta64(&processItem->IoWriteDelta, process->WriteTransferCount.QuadPart);
+            UpdateDelta64(&processItem->IoOtherDelta, process->OtherTransferCount.QuadPart);
+            UpdateDelta64(&processItem->IoReadCountDelta, process->ReadOperationCount.QuadPart);
+            UpdateDelta64(&processItem->IoWriteCountDelta, process->WriteOperationCount.QuadPart);
+            UpdateDelta64(&processItem->IoOtherCountDelta, process->OtherOperationCount.QuadPart);
+            UpdateDelta32(&processItem->ContextSwitchesDelta, contextSwitches);
+            UpdateDelta32(&processItem->PageFaultsDelta, process->PageFaultCount);
+            UpdateDelta64(&processItem->CycleTimeDelta, process->CycleTime);
+            UpdateDeltaUint(&processItem->PrivateBytesDelta, process->PagefileUsage);
 
             processItem->IsSuspended = isSuspended;
             processItem->IsPartiallySuspended = isPartiallySuspended;
@@ -2248,18 +2345,18 @@ VOID PhProcessProviderUpdate(_In_ PVOID obj)
             }
 
             // Update the deltas.
-            PhUpdateDelta(&processItem->CpuKernelDelta, process->KernelTime.QuadPart); // Usage?
-            PhUpdateDelta(&processItem->CpuUserDelta, process->UserTime.QuadPart); // Usage?
-            PhUpdateDelta(&processItem->IoReadDelta, process->ReadTransferCount.QuadPart);
-            PhUpdateDelta(&processItem->IoWriteDelta, process->WriteTransferCount.QuadPart);
-            PhUpdateDelta(&processItem->IoOtherDelta, process->OtherTransferCount.QuadPart);
-            PhUpdateDelta(&processItem->IoReadCountDelta, process->ReadOperationCount.QuadPart);
-            PhUpdateDelta(&processItem->IoWriteCountDelta, process->WriteOperationCount.QuadPart);
-            PhUpdateDelta(&processItem->IoOtherCountDelta, process->OtherOperationCount.QuadPart);
-            PhUpdateDelta(&processItem->ContextSwitchesDelta, contextSwitches);
-            PhUpdateDelta(&processItem->PageFaultsDelta, process->PageFaultCount);
-            PhUpdateDelta(&processItem->CycleTimeDelta, process->CycleTime);  // Usage
-            PhUpdateDelta(&processItem->PrivateBytesDelta, process->PagefileUsage);
+            UpdateDelta64(&processItem->CpuKernelDelta, process->KernelTime.QuadPart); // Usage?
+            UpdateDelta64(&processItem->CpuUserDelta, process->UserTime.QuadPart); // Usage?
+            UpdateDelta64(&processItem->IoReadDelta, process->ReadTransferCount.QuadPart);
+            UpdateDelta64(&processItem->IoWriteDelta, process->WriteTransferCount.QuadPart);
+            UpdateDelta64(&processItem->IoOtherDelta, process->OtherTransferCount.QuadPart);
+            UpdateDelta64(&processItem->IoReadCountDelta, process->ReadOperationCount.QuadPart);
+            UpdateDelta64(&processItem->IoWriteCountDelta, process->WriteOperationCount.QuadPart);
+            UpdateDelta64(&processItem->IoOtherCountDelta, process->OtherOperationCount.QuadPart);
+            UpdateDelta32(&processItem->ContextSwitchesDelta, contextSwitches);
+            UpdateDelta32(&processItem->PageFaultsDelta, process->PageFaultCount);
+            UpdateDelta64(&processItem->CycleTimeDelta, process->CycleTime);  // Usage
+            UpdateDeltaUint(&processItem->PrivateBytesDelta, process->PagefileUsage);
 
             if (DEBUG_CPU_COUNTS && DEBUG_ME)
             {
@@ -2694,7 +2791,6 @@ PPH_PROCESS_RECORD PhpCreateProcessRecord(_In_ PPH_PROCESS_ITEM ProcessItem)
     PhSetReference(&processRecord->ProcessName, ProcessItem->ProcessName);
     PhSetReference(&processRecord->FileName, ProcessItem->FileName);
     PhSetReference(&processRecord->CommandLine, ProcessItem->CommandLine);
-    //PhSetReference(&processRecord->UserName, ProcessItem->UserName);
 
     return processRecord;
 }

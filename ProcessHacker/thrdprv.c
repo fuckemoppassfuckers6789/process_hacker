@@ -852,7 +852,7 @@ VOID PhpThreadProviderUpdate(
             threadItem->KernelTime = thread->KernelTime;
             threadItem->UserTime = thread->UserTime;
 
-            PhUpdateDelta(&threadItem->ContextSwitchesDelta, thread->ContextSwitches);
+            UpdateDelta32(&threadItem->ContextSwitchesDelta, thread->ContextSwitches);
             threadItem->Priority = thread->Priority;
             threadItem->BasePriority = thread->BasePriority;
             threadItem->State = (KTHREAD_STATE)thread->ThreadState;
@@ -882,13 +882,13 @@ VOID PhpThreadProviderUpdate(
                     &cycles
                     )))
                 {
-                    PhUpdateDelta(&threadItem->CyclesDelta, cycles);
+                    UpdateDelta64(&threadItem->CyclesDelta, cycles);
                 }
             }
 
             // Initialize the CPU time deltas.
-            PhUpdateDelta(&threadItem->CpuKernelDelta, threadItem->KernelTime.QuadPart);
-            PhUpdateDelta(&threadItem->CpuUserDelta, threadItem->UserTime.QuadPart);
+            UpdateDelta64(&threadItem->CpuKernelDelta, threadItem->KernelTime.QuadPart);
+            UpdateDelta64(&threadItem->CpuUserDelta, threadItem->UserTime.QuadPart);
 
             // Try to get the start address.
 
@@ -1015,7 +1015,7 @@ VOID PhpThreadProviderUpdate(
                 ULONG oldDelta;
 
                 oldDelta = threadItem->ContextSwitchesDelta.Delta;
-                PhUpdateDelta(&threadItem->ContextSwitchesDelta, thread->ContextSwitches);
+                UpdateDelta32(&threadItem->ContextSwitchesDelta, thread->ContextSwitches);
 
                 if (threadItem->ContextSwitchesDelta.Delta != oldDelta)
                 {
@@ -1036,7 +1036,7 @@ VOID PhpThreadProviderUpdate(
                     &cycles
                     )))
                 {
-                    PhUpdateDelta(&threadItem->CyclesDelta, cycles);
+                    UpdateDelta64(&threadItem->CyclesDelta, cycles);
 
                     if (threadItem->CyclesDelta.Delta != oldDelta)
                     {
@@ -1046,8 +1046,8 @@ VOID PhpThreadProviderUpdate(
             }
 
             // Update the CPU time deltas.
-            PhUpdateDelta(&threadItem->CpuKernelDelta, threadItem->KernelTime.QuadPart);
-            PhUpdateDelta(&threadItem->CpuUserDelta, threadItem->UserTime.QuadPart);
+            UpdateDelta64(&threadItem->CpuKernelDelta, threadItem->KernelTime.QuadPart);
+            UpdateDelta64(&threadItem->CpuUserDelta, threadItem->UserTime.QuadPart);
 
             // Update the CPU usage.
             // If the cycle time isn't available, we'll fall back to using the CPU time.

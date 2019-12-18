@@ -186,9 +186,9 @@ VOID PhSipInitializeIoDialog(
     VOID
     )
 {
-    PhInitializeDelta(&IoReadDelta);
-    PhInitializeDelta(&IoWriteDelta);
-    PhInitializeDelta(&IoOtherDelta);
+    ZeroMemory(&IoReadDelta, sizeof(PH_UINT64_DELTA));
+    ZeroMemory(&IoWriteDelta, sizeof(PH_UINT64_DELTA));
+    ZeroMemory(&IoOtherDelta, sizeof(PH_UINT64_DELTA));
 
     PhInitializeGraphState(&IoGraphState);
 
@@ -206,9 +206,9 @@ VOID PhSipTickIoDialog(
     VOID
     )
 {
-    PhUpdateDelta(&IoReadDelta, PhPerfInformation.IoReadOperationCount);
-    PhUpdateDelta(&IoWriteDelta, PhPerfInformation.IoWriteOperationCount);
-    PhUpdateDelta(&IoOtherDelta, PhPerfInformation.IoOtherOperationCount);
+    UpdateDelta64(&IoReadDelta, PhPerfInformation.IoReadOperationCount);
+    UpdateDelta64(&IoWriteDelta, PhPerfInformation.IoWriteOperationCount);
+    UpdateDelta64(&IoOtherDelta, PhPerfInformation.IoOtherOperationCount);
 
     IoTicked++;
 

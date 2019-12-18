@@ -163,6 +163,7 @@
     <ClCompile Include="colorbox.c" />
     <ClCompile Include="cpysave.c" />
     <ClCompile Include="data.c" />
+    <ClCompile Include="dltmgr.c" />
     <ClCompile Include="dspick.c" />
     <ClCompile Include="emenu.c" />
     <ClCompile Include="error.c" />

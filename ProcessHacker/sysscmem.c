@@ -237,16 +237,16 @@ VOID PhSipInitializeMemoryDialog(
     VOID
     )
 {
-    PhInitializeDelta(&PagedAllocsDelta);
-    PhInitializeDelta(&PagedFreesDelta);
-    PhInitializeDelta(&NonPagedAllocsDelta);
-    PhInitializeDelta(&NonPagedFreesDelta);
-    PhInitializeDelta(&PageFaultsDelta);
-    PhInitializeDelta(&PageReadsDelta);
-    PhInitializeDelta(&PagefileWritesDelta);
-    PhInitializeDelta(&MappedWritesDelta);
-    PhInitializeDelta(&MappedIoReadDelta);
-    PhInitializeDelta(&MappedIoWritesDelta);
+    ZeroMemory(&PagedAllocsDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&PagedFreesDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&NonPagedAllocsDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&NonPagedFreesDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&PageFaultsDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&PageReadsDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&PagefileWritesDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&MappedWritesDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&MappedIoReadDelta, sizeof(PH_UINT64_DELTA));
+    ZeroMemory(&MappedIoWritesDelta, sizeof(PH_UINT64_DELTA));
 
     PhInitializeGraphState(&CommitGraphState);
     PhInitializeGraphState(&PhysicalGraphState);
@@ -272,16 +272,16 @@ VOID PhSipTickMemoryDialog(
     VOID
     )
 {
-    PhUpdateDelta(&PagedAllocsDelta, PhPerfInformation.PagedPoolAllocs);
-    PhUpdateDelta(&PagedFreesDelta, PhPerfInformation.PagedPoolFrees);
-    PhUpdateDelta(&NonPagedAllocsDelta, PhPerfInformation.NonPagedPoolAllocs);
-    PhUpdateDelta(&NonPagedFreesDelta, PhPerfInformation.NonPagedPoolFrees);
-    PhUpdateDelta(&PageFaultsDelta, PhPerfInformation.PageFaultCount);
-    PhUpdateDelta(&PageReadsDelta, PhPerfInformation.PageReadCount);
-    PhUpdateDelta(&PagefileWritesDelta, PhPerfInformation.DirtyPagesWriteCount);
-    PhUpdateDelta(&MappedWritesDelta, PhPerfInformation.MappedPagesWriteCount);
-    PhUpdateDelta(&MappedIoReadDelta, UInt32x32To64(PhPerfInformation.PageReadCount, PAGE_SIZE));
-    PhUpdateDelta(&MappedIoWritesDelta, ((ULONG64)PhPerfInformation.MappedPagesWriteCount + PhPerfInformation.DirtyPagesWriteCount + PhPerfInformation.CcLazyWritePages) * PAGE_SIZE);
+    UpdateDelta32(&PagedAllocsDelta, PhPerfInformation.PagedPoolAllocs);
+    UpdateDelta32(&PagedFreesDelta, PhPerfInformation.PagedPoolFrees);
+    UpdateDelta32(&NonPagedAllocsDelta, PhPerfInformation.NonPagedPoolAllocs);
+    UpdateDelta32(&NonPagedFreesDelta, PhPerfInformation.NonPagedPoolFrees);
+    UpdateDelta32(&PageFaultsDelta, PhPerfInformation.PageFaultCount);
+    UpdateDelta32(&PageReadsDelta, PhPerfInformation.PageReadCount);
+    UpdateDelta32(&PagefileWritesDelta, PhPerfInformation.DirtyPagesWriteCount);
+    UpdateDelta32(&MappedWritesDelta, PhPerfInformation.MappedPagesWriteCount);
+    UpdateDelta64(&MappedIoReadDelta, UInt32x32To64(PhPerfInformation.PageReadCount, PAGE_SIZE));
+    UpdateDelta64(&MappedIoWritesDelta, ((ULONG64)PhPerfInformation.MappedPagesWriteCount + PhPerfInformation.DirtyPagesWriteCount + PhPerfInformation.CcLazyWritePages) * PAGE_SIZE);
 
     if (MemoryTicked < 2)
         MemoryTicked++;

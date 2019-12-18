@@ -156,10 +156,10 @@ VOID PhSipInitializeCpuDialog(
 {
     ULONG PowerInformationLength;
 
-    PhInitializeDelta(&ContextSwitchesDelta);
-    PhInitializeDelta(&InterruptsDelta);
-    PhInitializeDelta(&DpcsDelta);
-    PhInitializeDelta(&SystemCallsDelta);
+    ZeroMemory(&ContextSwitchesDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&InterruptsDelta, sizeof(PH_UINT32_DELTA));
+    ZeroMemory(&DpcsDelta, sizeof(PH_UINT64_DELTA));
+    ZeroMemory(&SystemCallsDelta, sizeof(PH_UINT32_DELTA));
 
     NumberOfProcessors = (ULONG)PhSystemBasicInformation.NumberOfProcessors;
     CpusGraphHandle = PhAllocate(sizeof(HWND) * NumberOfProcessors);
@@ -236,10 +236,10 @@ VOID PhSipTickCpuDialog(
             dpcCount += InterruptInformation[i].DpcCount;
     }
 
-    PhUpdateDelta(&ContextSwitchesDelta, PhPerfInformation.ContextSwitches);
-    PhUpdateDelta(&InterruptsDelta, PhCpuTotals.InterruptCount);
-    PhUpdateDelta(&DpcsDelta, dpcCount);
-    PhUpdateDelta(&SystemCallsDelta, PhPerfInformation.SystemCalls);
+    UpdateDelta32(&ContextSwitchesDelta, PhPerfInformation.ContextSwitches);
+    UpdateDelta32(&InterruptsDelta, PhCpuTotals.InterruptCount);
+    UpdateDelta64(&DpcsDelta, dpcCount);
+    UpdateDelta32(&SystemCallsDelta, PhPerfInformation.SystemCalls);
 
     if (!NT_SUCCESS(NtPowerInformation(
         ProcessorInformation,
